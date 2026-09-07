@@ -1,0 +1,5 @@
+# BioSample geo knowledge-graph app (geoapp/)
+# Deliberately light: no ML stack, no FAISS - this app is API + graph + map only.
+requests>=2.31.0
+flask>=3.0.0
+rdflib>=7.0.0

@@ -1,0 +1,672 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Natura 2000 Ontology Linker</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/cytoscape/3.28.1/cytoscape.min.js"></script>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #1a2332; color: #e0e6f0; height: 100vh; display: flex; flex-direction: column; }
+
+  /* Header */
+  header { background: #0d1b2a; padding: 12px 20px; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid #2d4a6e; flex-shrink: 0; }
+  header h1 { font-size: 1.2rem; font-weight: 600; color: #7ecff5; letter-spacing: 0.5px; }
+  header .subtitle { font-size: 0.75rem; color: #6b8cac; margin-top: 2px; }
+  .header-controls { display: flex; gap: 10px; align-items: center; }
+  .btn { padding: 6px 14px; border: none; border-radius: 5px; cursor: pointer; font-size: 0.8rem; font-weight: 500; transition: background 0.15s; }
+  .btn-primary { background: #1e6fb5; color: #fff; }
+  .btn-primary:hover { background: #2580cc; }
+  .btn-secondary { background: #2d4a6e; color: #c0d4e8; }
+  .btn-secondary:hover { background: #3a5f8a; }
+
+  /* Main layout */
+  .main { display: grid; grid-template-columns: 260px 1fr 300px; flex: 1; overflow: hidden; }
+
+  /* Sidebar */
+  .sidebar { background: #0d1b2a; padding: 14px; overflow-y: auto; border-right: 1px solid #2d4a6e; display: flex; flex-direction: column; gap: 16px; }
+  .sidebar-section { background: #162030; border-radius: 8px; padding: 12px; }
+  .sidebar-section h3 { font-size: 0.72rem; text-transform: uppercase; letter-spacing: 1px; color: #5a8ab0; margin-bottom: 10px; }
+  input[type="text"] { width: 100%; padding: 7px 10px; background: #0d1b2a; border: 1px solid #2d4a6e; border-radius: 5px; color: #c0d4e8; font-size: 0.82rem; outline: none; }
+  input[type="text"]:focus { border-color: #1e6fb5; }
+
+  .checkbox-group { display: flex; flex-direction: column; gap: 7px; }
+  .checkbox-item { display: flex; align-items: center; gap: 8px; cursor: pointer; font-size: 0.82rem; color: #b0c4d8; }
+  .checkbox-item input { width: 14px; height: 14px; cursor: pointer; accent-color: #1e6fb5; }
+  .color-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+
+  .slider-container { display: flex; flex-direction: column; gap: 6px; }
+  .slider-label { display: flex; justify-content: space-between; font-size: 0.78rem; color: #8aa8c4; }
+  input[type="range"] { width: 100%; accent-color: #1e6fb5; }
+
+  .stat-item { display: flex; justify-content: space-between; align-items: center; font-size: 0.78rem; padding: 4px 0; border-bottom: 1px solid #1e3050; }
+  .stat-item:last-child { border-bottom: none; }
+  .stat-label { color: #8aa8c4; }
+  .stat-value { font-weight: 600; color: #7ecff5; }
+
+  /* Legend */
+  .legend-items { display: flex; flex-direction: column; gap: 5px; }
+  .legend-item { display: flex; align-items: center; gap: 8px; font-size: 0.75rem; color: #8aa8c4; }
+  .legend-node { width: 12px; height: 12px; border-radius: 50%; flex-shrink: 0; }
+  .legend-edge { width: 20px; height: 3px; flex-shrink: 0; border-radius: 2px; }
+
+  /* Center graph/table */
+  .center { position: relative; overflow: hidden; background: #111c2b; }
+  #cy { width: 100%; height: 100%; }
+  .table-view { display: none; overflow: auto; padding: 16px; height: 100%; }
+  .data-table { width: 100%; border-collapse: collapse; font-size: 0.8rem; }
+  .data-table th { background: #162030; padding: 8px 12px; text-align: left; color: #7ecff5; font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.5px; cursor: pointer; white-space: nowrap; user-select: none; border-bottom: 2px solid #2d4a6e; }
+  .data-table th:hover { background: #1e3050; }
+  .data-table td { padding: 7px 12px; border-bottom: 1px solid #1a2d42; color: #c0d4e8; vertical-align: top; }
+  .data-table tr:hover td { background: #162030; cursor: pointer; }
+  .badge { display: inline-block; padding: 2px 7px; border-radius: 10px; font-size: 0.68rem; font-weight: 600; white-space: nowrap; }
+  .badge-habitat { background: #1a4a7a; color: #7ecff5; }
+  .badge-species { background: #4a1a5e; color: #c97de8; }
+  .badge-region { background: #4a3200; color: #f5b942; }
+  .badge-status { background: #4a1a1a; color: #f57a7a; }
+
+  /* Detail panel */
+  .detail-panel { background: #0d1b2a; border-left: 1px solid #2d4a6e; overflow-y: auto; padding: 16px; }
+  .detail-empty { display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%; color: #3a5a7a; text-align: center; gap: 10px; }
+  .detail-empty svg { opacity: 0.3; }
+  .detail-term-title { font-size: 1rem; font-weight: 600; color: #e0ecf8; margin-bottom: 8px; line-height: 1.4; }
+  .detail-meta { font-size: 0.78rem; color: #6b8cac; margin-bottom: 14px; }
+  .detail-field { margin-bottom: 12px; }
+  .detail-field label { display: block; font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.8px; color: #5a8ab0; margin-bottom: 4px; }
+  .detail-field p { font-size: 0.82rem; color: #b0c8e0; line-height: 1.5; }
+  .detail-field a { color: #5ab0e8; text-decoration: none; word-break: break-all; }
+  .detail-field a:hover { text-decoration: underline; }
+  .mappings-list { display: flex; flex-direction: column; gap: 8px; margin-top: 6px; }
+  .mapping-card { background: #162030; border-radius: 6px; padding: 10px; border-left: 3px solid; }
+  .mapping-card.wikidata { border-left-color: #3498db; }
+  .mapping-card.dbpedia { border-left-color: #e67e22; }
+  .mapping-card.ols4 { border-left-color: #27ae60; }
+  .mapping-card .mapping-label { font-size: 0.82rem; color: #c0d8f0; font-weight: 500; margin-bottom: 4px; }
+  .mapping-card .mapping-meta { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+  .mapping-card .mapping-uri { font-size: 0.7rem; color: #5ab0e8; text-decoration: none; word-break: break-all; display: block; margin-top: 4px; }
+  .mapping-card .mapping-uri:hover { text-decoration: underline; }
+  .conf-badge { font-size: 0.68rem; padding: 1px 6px; border-radius: 8px; background: #1e3050; color: #7ecff5; }
+  .type-badge { font-size: 0.65rem; padding: 1px 6px; border-radius: 8px; }
+  .type-exact { background: #1a4a1a; color: #6ae86a; }
+  .type-close { background: #3a3a00; color: #e8d86a; }
+  .type-related { background: #3a1a00; color: #e8a86a; }
+
+  /* Loading / error overlay */
+  .overlay { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; background: rgba(17, 28, 43, 0.9); z-index: 100; gap: 12px; }
+  .overlay.hidden { display: none; }
+  .spinner { width: 36px; height: 36px; border: 3px solid #2d4a6e; border-top-color: #1e6fb5; border-radius: 50%; animation: spin 0.8s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .overlay-msg { font-size: 0.85rem; color: #8aa8c4; text-align: center; max-width: 320px; line-height: 1.6; }
+  .overlay-error { color: #f57a7a; font-size: 0.85rem; text-align: center; max-width: 360px; line-height: 1.6; }
+  .overlay-error code { background: #1a1a2a; padding: 2px 5px; border-radius: 3px; font-size: 0.78rem; }
+
+  /* Scrollbar */
+  ::-webkit-scrollbar { width: 6px; }
+  ::-webkit-scrollbar-track { background: #0d1b2a; }
+  ::-webkit-scrollbar-thumb { background: #2d4a6e; border-radius: 3px; }
+</style>
+</head>
+<body>
+
+<header>
+  <div>
+    <h1>🌿 Natura 2000 Ontology Linker</h1>
+    <div class="subtitle">Interactive visualization of linked biological ontologies</div>
+  </div>
+  <div class="header-controls">
+    <button class="btn btn-secondary" id="btnToggleView">Switch to Table View</button>
+    <button class="btn btn-primary" id="btnRefresh">Reload Data</button>
+  </div>
+</header>
+
+<div class="main">
+
+  <!-- Sidebar -->
+  <aside class="sidebar">
+
+    <div class="sidebar-section">
+      <h3>Search</h3>
+      <input type="text" id="searchInput" placeholder="Search terms, species names…">
+    </div>
+
+    <div class="sidebar-section">
+      <h3>Category</h3>
+      <div class="checkbox-group">
+        <label class="checkbox-item">
+          <input type="checkbox" class="cat-filter" value="habitat" checked>
+          <span class="color-dot" style="background:#2E86AB"></span> Habitat
+        </label>
+        <label class="checkbox-item">
+          <input type="checkbox" class="cat-filter" value="species">
+          <span class="color-dot" style="background:#A23B72"></span> Species <span style="font-size:0.65rem;color:#5a8ab0">(1500+)</span>
+        </label>
+        <label class="checkbox-item">
+          <input type="checkbox" class="cat-filter" value="region" checked>
+          <span class="color-dot" style="background:#F18F01"></span> Region
+        </label>
+        <label class="checkbox-item">
+          <input type="checkbox" class="cat-filter" value="status" checked>
+          <span class="color-dot" style="background:#C73E1D"></span> Status
+        </label>
+      </div>
+    </div>
+
+    <div class="sidebar-section">
+      <h3>Source Ontology</h3>
+      <div class="checkbox-group">
+        <label class="checkbox-item">
+          <input type="checkbox" class="ont-filter" value="wikidata" checked>
+          <span class="color-dot" style="background:#3498db"></span> Wikidata
+        </label>
+        <label class="checkbox-item">
+          <input type="checkbox" class="ont-filter" value="dbpedia" checked>
+          <span class="color-dot" style="background:#e67e22"></span> DBpedia
+        </label>
+        <label class="checkbox-item">
+          <input type="checkbox" class="ont-filter" value="ols4" checked>
+          <span class="color-dot" style="background:#27ae60"></span> OLS4 / ENVO / NCBITaxon
+        </label>
+      </div>
+    </div>
+
+    <div class="sidebar-section">
+      <h3>Min Confidence</h3>
+      <div class="slider-container">
+        <div class="slider-label"><span>0.0</span><span id="confValue">0.50</span><span>1.0</span></div>
+        <input type="range" id="confSlider" min="0" max="1" step="0.05" value="0.50">
+      </div>
+    </div>
+
+    <div class="sidebar-section">
+      <h3>Graph Size</h3>
+      <div class="slider-container">
+        <div class="slider-label"><span>50</span><span id="limitValue">500</span><span>2000</span></div>
+        <input type="range" id="limitSlider" min="50" max="2000" step="50" value="500">
+      </div>
+      <div style="font-size:0.7rem;color:#5a8ab0;margin-top:6px" id="graphSizeInfo">Max N2K terms shown. Enable Species for species exploration.</div>
+    </div>
+
+    <div class="sidebar-section">
+      <h3>Statistics</h3>
+      <div id="statsPanel">
+        <div class="stat-item"><span class="stat-label">Total terms</span><span class="stat-value" id="statTotal">—</span></div>
+        <div class="stat-item"><span class="stat-label">Habitats</span><span class="stat-value" id="statHabitats">—</span></div>
+        <div class="stat-item"><span class="stat-label">Species</span><span class="stat-value" id="statSpecies">—</span></div>
+        <div class="stat-item"><span class="stat-label">Total mappings</span><span class="stat-value" id="statMappings">—</span></div>
+        <div class="stat-item"><span class="stat-label">Wikidata</span><span class="stat-value" id="statWikidata">—</span></div>
+        <div class="stat-item"><span class="stat-label">DBpedia</span><span class="stat-value" id="statDbpedia">—</span></div>
+        <div class="stat-item"><span class="stat-label">OLS4</span><span class="stat-value" id="statOls4">—</span></div>
+        <div class="stat-item"><span class="stat-label">Avg confidence</span><span class="stat-value" id="statAvgConf">—</span></div>
+      </div>
+    </div>
+
+    <div class="sidebar-section">
+      <h3>Legend</h3>
+      <div class="legend-items">
+        <div class="legend-item"><span class="legend-node" style="background:#2E86AB"></span> Natura 2000 Habitat</div>
+        <div class="legend-item"><span class="legend-node" style="background:#A23B72"></span> Natura 2000 Species</div>
+        <div class="legend-item"><span class="legend-node" style="background:#F18F01"></span> Region</div>
+        <div class="legend-item"><span class="legend-node" style="background:#C73E1D"></span> Status</div>
+        <div class="legend-item"><span class="legend-node" style="background:#3498db; width:14px; height:14px; border-radius:3px;"></span> Wikidata match</div>
+        <div class="legend-item"><span class="legend-node" style="background:#e67e22; width:14px; height:14px; border-radius:3px;"></span> DBpedia match</div>
+        <div class="legend-item"><span class="legend-node" style="background:#27ae60; width:14px; height:14px; border-radius:3px;"></span> OLS4/ENVO/NCBITaxon</div>
+        <div class="legend-item"><span class="legend-edge" style="background:#888; border:1px dashed #888; height:0; border-top: 2px dashed #888;"></span> closeMatch</div>
+        <div class="legend-item"><span class="legend-edge" style="background:#888; border:1px dotted #888; height:0; border-top: 2px dotted #888;"></span> relatedMatch</div>
+      </div>
+    </div>
+
+  </aside>
+
+  <!-- Center: Graph or Table -->
+  <div class="center" id="centerPanel">
+    <div id="cy"></div>
+
+    <div class="table-view" id="tableView">
+      <table class="data-table" id="dataTable">
+        <thead>
+          <tr>
+            <th data-sort="label">Label</th>
+            <th data-sort="category">Category</th>
+            <th data-sort="scientific_name">Scientific Name</th>
+            <th>Wikidata</th>
+            <th>DBpedia</th>
+            <th>OLS4</th>
+          </tr>
+        </thead>
+        <tbody id="tableBody"></tbody>
+      </table>
+    </div>
+
+    <div class="overlay" id="loadingOverlay">
+      <div class="spinner"></div>
+      <div class="overlay-msg">Loading ontology graph…</div>
+    </div>
+  </div>
+
+  <!-- Detail panel -->
+  <aside class="detail-panel" id="detailPanel">
+    <div class="detail-empty" id="detailEmpty">
+      <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+        <circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/>
+      </svg>
+      <div>Click any node to see details</div>
+    </div>
+    <div id="detailContent" style="display:none"></div>
+  </aside>
+
+</div>
+
+<script>
+// ─── State ───────────────────────────────────────────────────────────────────
+let cy = null;
+let allTerms = [];
+let allMappings = [];
+let statsData = {};
+let sortColumn = 'label';
+let sortAsc = true;
+let viewMode = 'graph'; // 'graph' | 'table'
+let searchDebounce = null;
+
+// ─── Bootstrap ───────────────────────────────────────────────────────────────
+document.addEventListener('DOMContentLoaded', async () => {
+  await loadStats();
+  await initGraph();
+  setupEventListeners();
+});
+
+// ─── Data loading ─────────────────────────────────────────────────────────────
+async function loadStats() {
+  try {
+    const r = await fetch('/api/stats');
+    statsData = await r.json();
+    updateStatsPanel(statsData);
+  } catch (e) {
+    console.warn('Stats load failed:', e);
+  }
+}
+
+function updateStatsPanel(s) {
+  setText('statTotal', s.total_terms ?? '—');
+  setText('statHabitats', s.terms_by_category?.habitat ?? '—');
+  setText('statSpecies', s.terms_by_category?.species ?? '—');
+  setText('statMappings', s.total_mappings ?? '—');
+  setText('statWikidata', s.mappings_by_ontology?.wikidata ?? '—');
+  setText('statDbpedia', s.mappings_by_ontology?.dbpedia ?? '—');
+  setText('statOls4', s.mappings_by_ontology?.ols4 ?? '—');
+  setText('statAvgConf', s.avg_confidence != null ? s.avg_confidence.toFixed(3) : '—');
+}
+
+async function initGraph() {
+  showLoading(true);
+  try {
+    const params = buildParams();
+    const r = await fetch('/api/graph?' + params);
+    const data = await r.json();
+
+    if (data.data_missing) {
+      showError('Pipeline data not found.<br>Please run: <code>docker-compose --profile pipeline up</code>');
+      return;
+    }
+    if (data.error) {
+      showError('Error loading data: ' + data.error);
+      return;
+    }
+
+    renderGraph(data.nodes, data.edges);
+    const n2kCount = data.nodes.filter(n => n.data.node_type === 'natura2000').length;
+    document.getElementById('graphSizeInfo').textContent =
+      `Showing ${n2kCount} N2K terms · ${data.edges.length} links`;
+    if (viewMode === 'table') await loadTableData();
+  } catch (e) {
+    showError('Failed to connect to server.<br>' + e.message);
+  } finally {
+    showLoading(false);
+  }
+}
+
+function buildParams() {
+  const cats = [...document.querySelectorAll('.cat-filter:checked')].map(c => c.value);
+  const onts = [...document.querySelectorAll('.ont-filter:checked')].map(c => c.value);
+  const conf = document.getElementById('confSlider').value;
+  const limit = document.getElementById('limitSlider').value;
+  const search = document.getElementById('searchInput').value.trim();
+  const p = new URLSearchParams();
+  if (cats.length) p.set('category', cats.join(','));
+  if (onts.length) p.set('ontology', onts.join(','));
+  p.set('min_confidence', conf);
+  p.set('limit', limit);
+  if (search) p.set('search', search);
+  return p.toString();
+}
+
+// ─── Cytoscape rendering ─────────────────────────────────────────────────────
+function renderGraph(nodes, edges) {
+  if (cy) { cy.destroy(); cy = null; }
+
+  cy = cytoscape({
+    container: document.getElementById('cy'),
+    elements: { nodes, edges },
+    style: [
+      // N2K nodes by category
+      { selector: 'node[node_type="natura2000"][category="habitat"]',
+        style: { 'background-color': '#2E86AB', 'border-color': '#1a5c80', 'border-width': 2 } },
+      { selector: 'node[node_type="natura2000"][category="species"]',
+        style: { 'background-color': '#A23B72', 'border-color': '#7a1a50', 'border-width': 2 } },
+      { selector: 'node[node_type="natura2000"][category="region"]',
+        style: { 'background-color': '#F18F01', 'border-color': '#b06800', 'border-width': 2 } },
+      { selector: 'node[node_type="natura2000"][category="status"]',
+        style: { 'background-color': '#C73E1D', 'border-color': '#952e14', 'border-width': 2 } },
+      // Generic N2K node styles
+      { selector: 'node[node_type="natura2000"]',
+        style: {
+          'label': 'data(label)', 'font-size': '9px', 'color': '#e0ecf8',
+          'text-wrap': 'wrap', 'text-max-width': '80px', 'text-halign': 'center',
+          'text-valign': 'bottom', 'text-margin-y': 4,
+          'width': 36, 'height': 36,
+        }
+      },
+      // External nodes
+      { selector: 'node[node_type="external"][source_ontology="wikidata"]',
+        style: { 'background-color': '#3498db', 'shape': 'diamond', 'width': 18, 'height': 18 } },
+      { selector: 'node[node_type="external"][source_ontology="dbpedia"]',
+        style: { 'background-color': '#e67e22', 'shape': 'rectangle', 'width': 18, 'height': 18 } },
+      { selector: 'node[node_type="external"][source_ontology="ols4"]',
+        style: { 'background-color': '#27ae60', 'shape': 'ellipse', 'width': 18, 'height': 18 } },
+      { selector: 'node[node_type="external"]',
+        style: {
+          'label': 'data(label)', 'font-size': '7px', 'color': '#90b0cc',
+          'text-wrap': 'ellipsis', 'text-max-width': '60px',
+          'text-halign': 'center', 'text-valign': 'bottom', 'text-margin-y': 3,
+        }
+      },
+      // Edges by ontology
+      { selector: 'edge[source_ontology="wikidata"]',
+        style: { 'line-color': '#3498db' } },
+      { selector: 'edge[source_ontology="dbpedia"]',
+        style: { 'line-color': '#e67e22' } },
+      { selector: 'edge[source_ontology="ols4"]',
+        style: { 'line-color': '#27ae60' } },
+      // Edge by match type
+      { selector: 'edge[match_type="skos:exactMatch"]',
+        style: { 'line-style': 'solid' } },
+      { selector: 'edge[match_type="skos:closeMatch"]',
+        style: { 'line-style': 'dashed', 'line-dash-pattern': [6, 3] } },
+      { selector: 'edge[match_type="skos:relatedMatch"]',
+        style: { 'line-style': 'dotted' } },
+      // Generic edge
+      { selector: 'edge',
+        style: {
+          'width': 'mapData(confidence, 0.5, 1.0, 1, 4)',
+          'opacity': 'mapData(confidence, 0.5, 1.0, 0.4, 0.9)',
+          'curve-style': 'bezier',
+          'target-arrow-shape': 'none',
+        }
+      },
+      // Highlighted
+      { selector: 'node.highlighted',
+        style: { 'border-width': 4, 'border-color': '#fff', 'z-index': 999 } },
+      { selector: 'node.faded',
+        style: { 'opacity': 0.15 } },
+      { selector: 'edge.faded',
+        style: { 'opacity': 0.05 } },
+    ],
+    layout: {
+      name: 'cose',
+      animate: nodes.length < 200,
+      animationDuration: 800,
+      nodeRepulsion: 6000,
+      idealEdgeLength: 100,
+      gravity: 0.5,
+      numIter: 1000,
+      randomize: true,
+    },
+  });
+
+  cy.on('tap', 'node', async (evt) => {
+    const node = evt.target;
+    highlightNode(node);
+    await showNodeDetail(node.data());
+  });
+
+  cy.on('tap', (evt) => {
+    if (evt.target === cy) {
+      clearHighlight();
+      showDetailEmpty();
+    }
+  });
+}
+
+function highlightNode(node) {
+  cy.elements().removeClass('highlighted faded');
+  const neighborhood = node.neighborhood().add(node);
+  cy.elements().not(neighborhood).addClass('faded');
+  node.addClass('highlighted');
+}
+
+function clearHighlight() {
+  cy.elements().removeClass('highlighted faded');
+}
+
+// ─── Detail panel ────────────────────────────────────────────────────────────
+async function showNodeDetail(data) {
+  const panel = document.getElementById('detailContent');
+  const empty = document.getElementById('detailEmpty');
+
+  if (data.node_type === 'external') {
+    empty.style.display = 'none';
+    panel.style.display = 'block';
+    panel.innerHTML = `
+      <div class="detail-term-title">${escHtml(data.label)}</div>
+      <div class="detail-meta">External ontology node</div>
+      <div class="detail-field">
+        <label>Source Ontology</label>
+        <p>${escHtml(data.source_ontology || '—')}</p>
+      </div>
+      <div class="detail-field">
+        <label>URI</label>
+        <p><a href="${escHtml(data.uri)}" target="_blank" rel="noopener">${escHtml(data.uri)}</a></p>
+      </div>`;
+    return;
+  }
+
+  const termId = data.id.replace(/^n2k_/, '');
+  try {
+    const r = await fetch(`/api/term/${encodeURIComponent(termId)}`);
+    const resp = await r.json();
+    if (resp.error) return;
+
+    const t = resp.term;
+    const mappings = resp.mappings || [];
+
+    empty.style.display = 'none';
+    panel.style.display = 'block';
+
+    const catBadge = `<span class="badge badge-${t.category || ''}">${escHtml(t.category || '')}</span>`;
+
+    let mappingsHtml = '';
+    if (mappings.length) {
+      const sorted = [...mappings].sort((a, b) => b.confidence - a.confidence);
+      mappingsHtml = sorted.map(m => {
+        const ont = m.source_ontology?.includes('wikidata') ? 'wikidata'
+                  : m.source_ontology?.includes('dbpedia') ? 'dbpedia' : 'ols4';
+        const typeClass = m.match_type?.includes('exact') ? 'type-exact'
+                        : m.match_type?.includes('close') ? 'type-close' : 'type-related';
+        const typeLabel = (m.match_type || '').replace('skos:', '');
+        return `<div class="mapping-card ${ont}">
+          <div class="mapping-label">${escHtml(m.target_label || m.target_uri)}</div>
+          <div class="mapping-meta">
+            <span class="conf-badge">${(+m.confidence).toFixed(3)}</span>
+            <span class="type-badge ${typeClass}">${escHtml(typeLabel)}</span>
+          </div>
+          <a class="mapping-uri" href="${escHtml(m.target_uri)}" target="_blank" rel="noopener">${escHtml(m.target_uri)}</a>
+        </div>`;
+      }).join('');
+    } else {
+      mappingsHtml = '<p style="color:#5a7a9a;font-size:0.8rem">No mappings found.</p>';
+    }
+
+    panel.innerHTML = `
+      <div class="detail-term-title">${escHtml(t.label || termId)}</div>
+      <div class="detail-meta">${catBadge} &nbsp; ${t.codes?.length ? 'Code: ' + escHtml(t.codes.join(', ')) : ''}</div>
+      ${t.scientific_name ? `<div class="detail-field"><label>Scientific Name</label><p><em>${escHtml(t.scientific_name)}</em></p></div>` : ''}
+      ${t.definition ? `<div class="detail-field"><label>Definition</label><p>${escHtml(t.definition)}</p></div>` : ''}
+      ${t.directive ? `<div class="detail-field"><label>Directive / Annex</label><p>${escHtml(t.directive)} — Annex ${escHtml(t.annex || '?')}</p></div>` : ''}
+      ${t.source_url ? `<div class="detail-field"><label>Source</label><p><a href="${escHtml(t.source_url)}" target="_blank" rel="noopener">${escHtml(t.source_url)}</a></p></div>` : ''}
+      <div class="detail-field">
+        <label>Linked Terms (${mappings.length})</label>
+        <div class="mappings-list">${mappingsHtml}</div>
+      </div>`;
+  } catch (e) {
+    console.warn('Failed to load term detail:', e);
+  }
+}
+
+function showDetailEmpty() {
+  document.getElementById('detailEmpty').style.display = 'flex';
+  document.getElementById('detailContent').style.display = 'none';
+}
+
+// ─── Table view ───────────────────────────────────────────────────────────────
+async function loadTableData() {
+  try {
+    const cats = [...document.querySelectorAll('.cat-filter:checked')].map(c => c.value);
+    const search = document.getElementById('searchInput').value.trim();
+    const p = new URLSearchParams();
+    if (cats.length) p.set('category', cats.join(','));
+    if (search) p.set('search', search);
+    const r = await fetch('/api/terms?' + p);
+    allTerms = await r.json();
+
+    // Also load mappings for counts
+    const mr = await fetch('/api/graph?' + buildParams());
+    const gd = await mr.json();
+    allMappings = (gd.edges || []).map(e => e.data);
+
+    renderTable();
+  } catch (e) {
+    console.warn('Table data load failed:', e);
+  }
+}
+
+function renderTable() {
+  const tbody = document.getElementById('tableBody');
+  const sorted = [...allTerms].sort((a, b) => {
+    const va = (a[sortColumn] || '').toString().toLowerCase();
+    const vb = (b[sortColumn] || '').toString().toLowerCase();
+    return sortAsc ? va.localeCompare(vb) : vb.localeCompare(va);
+  });
+
+  tbody.innerHTML = sorted.map(t => {
+    const wdCount = allMappings.filter(m => m.source === `n2k_${t.id}` && m.source_ontology === 'wikidata').length;
+    const dbCount = allMappings.filter(m => m.source === `n2k_${t.id}` && m.source_ontology === 'dbpedia').length;
+    const olsCount = allMappings.filter(m => m.source === `n2k_${t.id}` && m.source_ontology === 'ols4').length;
+    return `<tr onclick="selectTermInTable('${escAttr(t.id)}')">
+      <td>${escHtml(t.label || t.id)}</td>
+      <td><span class="badge badge-${t.category || ''}">${escHtml(t.category || '')}</span></td>
+      <td><em>${escHtml(t.scientific_name || '—')}</em></td>
+      <td>${wdCount || '—'}</td>
+      <td>${dbCount || '—'}</td>
+      <td>${olsCount || '—'}</td>
+    </tr>`;
+  }).join('');
+}
+
+async function selectTermInTable(termId) {
+  await showNodeDetail({ id: `n2k_${termId}`, node_type: 'natura2000' });
+}
+
+// ─── Event listeners ─────────────────────────────────────────────────────────
+function setupEventListeners() {
+  document.getElementById('searchInput').addEventListener('input', () => {
+    clearTimeout(searchDebounce);
+    searchDebounce = setTimeout(applyFilters, 300);
+  });
+
+  document.querySelectorAll('.cat-filter, .ont-filter').forEach(cb => {
+    cb.addEventListener('change', applyFilters);
+  });
+
+  const slider = document.getElementById('confSlider');
+  slider.addEventListener('input', () => {
+    document.getElementById('confValue').textContent = (+slider.value).toFixed(2);
+    applyFilters();
+  });
+
+  const limitSlider = document.getElementById('limitSlider');
+  limitSlider.addEventListener('input', () => {
+    document.getElementById('limitValue').textContent = limitSlider.value;
+    applyFilters();
+  });
+
+  document.getElementById('btnToggleView').addEventListener('click', toggleView);
+  document.getElementById('btnRefresh').addEventListener('click', initGraph);
+
+  document.querySelectorAll('.data-table th[data-sort]').forEach(th => {
+    th.addEventListener('click', () => {
+      const col = th.dataset.sort;
+      if (sortColumn === col) sortAsc = !sortAsc;
+      else { sortColumn = col; sortAsc = true; }
+      renderTable();
+    });
+  });
+}
+
+async function applyFilters() {
+  showLoading(true);
+  try {
+    const params = buildParams();
+    const r = await fetch('/api/graph?' + params);
+    const data = await r.json();
+    if (data.data_missing || data.error) return;
+    renderGraph(data.nodes, data.edges);
+    if (viewMode === 'table') await loadTableData();
+  } finally {
+    showLoading(false);
+  }
+}
+
+async function toggleView() {
+  const btn = document.getElementById('btnToggleView');
+  const graphEl = document.getElementById('cy');
+  const tableEl = document.getElementById('tableView');
+  if (viewMode === 'graph') {
+    viewMode = 'table';
+    graphEl.style.display = 'none';
+    tableEl.style.display = 'block';
+    btn.textContent = 'Switch to Graph View';
+    await loadTableData();
+  } else {
+    viewMode = 'graph';
+    graphEl.style.display = 'block';
+    tableEl.style.display = 'none';
+    btn.textContent = 'Switch to Table View';
+    if (cy) cy.resize();
+  }
+}
+
+// ─── UI helpers ───────────────────────────────────────────────────────────────
+function showLoading(on) {
+  document.getElementById('loadingOverlay').classList.toggle('hidden', !on);
+}
+
+function showError(msg) {
+  const overlay = document.getElementById('loadingOverlay');
+  overlay.classList.remove('hidden');
+  overlay.innerHTML = `<div class="overlay-error">${msg}</div>`;
+}
+
+function setText(id, val) {
+  const el = document.getElementById(id);
+  if (el) el.textContent = val;
+}
+
+function escHtml(s) {
+  return String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+function escAttr(s) {
+  return String(s ?? '').replace(/'/g, "\\'");
+}
+</script>
+</body>
+</html>

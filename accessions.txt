@@ -1,0 +1,444 @@
+# Accession list for the BioSample geo knowledge-graph app.
+# One accession per line; '#' starts a comment, inline or on its own line.
+# Secondary accessions (SRS/ERS/DRS) are resolved to a primary BioSample
+# accession through NCBI E-utilities before fetching from EBI BioSamples.
+#
+# Assembled from live EBI BioSamples queries for global coverage:
+#   271 samples with explicit coordinates
+#   61 samples with only a country or sea (exercise centroid fallback)
+#   2 secondary accessions (exercise SRS -> SAM resolution)
+#   334 accessions total, across 6 continents, the open oceans and the poles.
+#
+# Replace with your own list, or point elsewhere:
+#   python -m geoapp.cli --accessions my-accessions.txt
+
+# ===== Europe ======================================================
+# -- Denmark
+SAMEA10021153    # 57.25689, 11.14193
+SAMEA10021154    # 57.25689, 11.14193
+SAMEA10021155    # 57.25689, 11.14193
+SAMEA10021156    # 57.25689, 11.14193
+SAMEA10018461    # no coordinates - country centroid
+# -- Norway
+SAMEA10021206    # 78.21302778, 15.23361111
+SAMEA10021207    # 78.21302778, 15.23361111
+SAMEA10021208    # 78.21302778, 15.23361111
+SAMEA10021209    # 78.21302778, 15.23361111
+SAMEA10018673    # no coordinates - country centroid
+# -- Sweden
+SAMEA10021180    # 58.859877, 11.080491
+SAMEA10021181    # 58.859877, 11.080491
+SAMEA10021878    # 60/15
+SAMEA103892573    # 67.85596/19.47575
+SAMEA10015618    # no coordinates - country centroid
+# -- Finland
+SAMEA10017803    # 61.9241/25.7482
+SAMEA10017804    # 61.9241/25.7482
+SAMEA10017805    # 61.9241/25.7482
+SAMEA10017806    # 61.9241/25.7482
+SAMEA10162205    # no coordinates - country centroid
+# -- Iceland
+SAMEA103975771    # 64.85055556/-23.2975
+SAMEA103975772    # 64.85055556/-23.2975
+SAMEA103975773    # 64.85055556/-23.2975
+SAMEA103975774    # 64.85055556/-23.2975
+# -- United Kingdom
+SAMEA10021068    # 50.3674, -4.1552
+SAMEA10021069    # 50.3674, -4.1552
+SAMEA10021070    # 50.3674, -4.1552
+SAMEA10021071    # 50.3674, -4.1552
+SAMEA10026278    # no coordinates - country centroid
+# -- Ireland
+SAMEA10015630    # 53.1424/7.6921
+SAMEA10015631    # 53.1424/7.6921
+SAMEA10015632    # 53.1424/7.6921
+SAMEA10015633    # 53.1424/7.6921
+# -- Germany
+SAMEA10017297    # no coordinates - country centroid
+# -- Netherlands
+SAMEA10017449    # 52.51/5.47
+SAMEA10017450    # 52.51/5.47
+SAMEA10017451    # 52.51/5.47
+SAMEA10017452    # 52.51/5.47
+SAMEA10025994    # no coordinates - country centroid
+# -- Belgium
+SAMEA10020967    # 51.364298, 3.20701
+SAMEA10020968    # 51.364298, 3.20701
+SAMEA10020969    # 51.364298, 3.20701
+SAMEA10020970    # 51.6533567, 2.79178508
+SAMEA1031461    # no coordinates - country centroid
+# -- France
+SAMEA10016192    # 48.86/2.35
+SAMEA10016193    # 48.86/2.35
+SAMEA10016494    # 48.86/2.35
+SAMEA10016495    # 48.86/2.35
+SAMEA10017818    # no coordinates - country centroid
+# -- Spain
+SAMEA10020713    # 39.43708486/-0.46496185
+SAMEA10020714    # 39.46575132/-0.42524010
+SAMEA10020715    # 39.43708486/-0.46496185
+SAMEA10020716    # 39.43708486/-0.46496185
+SAMEA10017925    # no coordinates - country centroid
+# -- Portugal
+SAMEA10029469    # 38.887N, 9.126W
+SAMEA10030650    # 38.696036/-9.320556
+SAMEA10030651    # 38.696036/-9.320556
+SAMEA10029470    # no coordinates - country centroid
+# -- Italy
+SAMEA10020218    # 41.4621984/15.5446302
+SAMEA10020219    # 41.4621984/15.5446302
+SAMEA10020220    # 41.4621984/15.5446302
+SAMEA10020221    # 41.4621984/15.5446302
+SAMEA1031419    # no coordinates - country centroid
+# -- Greece
+SAMEA10021018    # 35.343153, 25.136605
+SAMEA10021019    # 35.343153, 25.136605
+SAMEA10021020    # 35.343153, 25.136605
+SAMEA10021021    # 35.343153, 25.136605
+SAMEA1020739    # no coordinates - country centroid
+# -- Poland
+SAMEA10021015    # 54.48522, 18.57111
+SAMEA10021016    # 54.48522, 18.57111
+SAMEA10021017    # 54.48522, 18.57111
+SAMEA104140799    # 51.434015/16.156069
+SAMEA1022579    # no coordinates - country centroid
+# -- Croatia
+SAMEA104142842    # 45.100001/15.200001
+SAMEA104142843    # 45.100002/15.200002
+SAMEA104142844    # 45.100003/15.200003
+SAMEA104354217    # 451.000/152.000
+SAMEA104111258    # no coordinates - country centroid
+# -- Estonia
+SAMEA10107525    # 59.333333/24.833333
+SAMEA10107526    # 59.333333/24.833333
+SAMEA10107527    # 59.333333/24.833333
+SAMEA10107528    # 59.333333/24.833333
+# -- Russia
+SAMEA1015921    # no coordinates - country centroid
+
+# ===== Africa ======================================================
+# -- South Africa
+SAMEA104302873    # 33'35'S/22'12'E
+SAMEA104302874    # 33'35'S/22'12'E
+SAMEA104302875    # 33'35'S/22'12'E
+SAMEA104302876    # 33'35'S/22'12'E
+SAMEA104090038    # no coordinates - country centroid
+# -- Kenya
+SAMEA104303046    # -3.7/39.7
+SAMEA104303047    # -3.7/39.7
+SAMEA1100743    # 3.5107 S/39.9093 E
+SAMEA1100744    # 3.5107 S/39.9093 E
+SAMEA1022763    # no coordinates - country centroid
+# -- Tanzania
+SAMEA104303044    # -6.4/39.5
+SAMEA104303045    # -6.4/39.5
+SAMEA104303048    # -4.9/39.6
+SAMEA104303049    # -4.9/39.6
+SAMEA10031311    # no coordinates - country centroid
+# -- Nigeria
+SAMEA103893318    # 8.762638889/3.766694444
+SAMEA103893319    # 8.767888889/3.765888889
+SAMEA103893320    # 8.769583333/3.766666667
+SAMEA104143932    # 9.081999/8.675277
+SAMEA104127628    # no coordinates - country centroid
+# -- Ghana
+SAMEA104075938    # 5.6037/0.187
+SAMEA104075939    # 5.6037/0.187
+SAMEA104075940    # 5.6037/0.187
+SAMEA104075941    # 5.6037/0.187
+SAMEA1022886    # no coordinates - country centroid
+# -- Egypt
+SAMEA110132562    # 30.23 31.23
+SAMEA110132791    # 31.05 33.833
+SAMEA110132792    # 31.233 34.217
+SAMEA110132793    # 31.467 26.633
+SAMEA10290047    # no coordinates - country centroid
+# -- Morocco
+SAMEA103892584    # 33.52149/-5.00242
+SAMEA103892585    # 33.39624/-5.19417
+SAMEA103892626    # 34.213506/-3.477804009
+SAMEA103893311    # 35.12319001/-4.471532023
+SAMEA103928498    # no coordinates - country centroid
+# -- Ethiopia
+SAMEA104061138    # no coordinates - country centroid
+# -- Uganda
+SAMEA10768762    # 1.3733/32.2903
+SAMEA10768763    # 1.3733/32.2903
+SAMEA10768764    # 1.3733/32.2903
+SAMEA10768765    # 1.3733/32.2903
+SAMEA103941481    # no coordinates - country centroid
+# -- Madagascar
+SAMEA10015958    # -18.88/47.51
+SAMEA10015959    # -18.88/47.51
+SAMEA10015960    # -18.88/47.51
+SAMEA10015961    # -18.88/47.51
+# -- Senegal
+SAMEA10031313    # no coordinates - country centroid
+# -- Namibia
+SAMEA103910273    # -23.70985/19.36927
+SAMEA103910274    # -23.70985/19.36927
+SAMEA103910275    # -23.70985/19.36927
+SAMEA103910276    # -23.70985/19.36927
+
+# ===== Asia ========================================================
+# -- China
+SAMEA10020256    # 30.5728/104.0668
+SAMEA10020257    # 30.5728/104.0668
+SAMEA10020258    # 30.5728/104.0668
+SAMEA10020259    # 30.5728/104.0668
+SAMEA10017938    # no coordinates - country centroid
+# -- Japan
+SAMEA103892592    # 43.28847/142.60428
+SAMEA104098305    # 24.4/124.1
+SAMEA104220159    # 35.43/133.33
+SAMEA104220160    # 35.43/133.33
+SAMEA1022545    # no coordinates - country centroid
+# -- India
+SAMEA10021844    # 19.49048/72.82067
+SAMEA10021845    # 19.49048/72.82067
+SAMEA10021846    # 19.49048/72.82067
+SAMEA101062168    # 23.81059/72.83419
+SAMEA1022788    # no coordinates - country centroid
+# -- Indonesia
+SAMEA10022002    # 2.294017/118.261867
+SAMEA10022003    # 2.294017/118.261867
+SAMEA10022004    # 2.294017/118.261867
+SAMEA10022005    # 2.294017/118.261867
+# -- Thailand
+SAMEA103892556    # 18.5289/98.3916
+SAMEA103892624    # 18.51/98.44
+SAMEA103892625    # 20.08/99.16
+SAMEA103893313    # 20.02/99.176
+SAMEA10031312    # no coordinates - country centroid
+# -- Viet Nam
+SAMEA100687168    # 12.683107/108.015363
+SAMEA103892490    # 20.34902/105.59649
+SAMEA103892492    # 22.32166/103.78688
+SAMEA104016449    # (10.7503016, 106.6715815)
+SAMEA1029880    # no coordinates - country centroid
+# -- South Korea
+SAMEA10031318    # 34��24'28.2N 126��20'41.9E
+SAMEA10031319    # 34��25'24.7N 126��20'57.7E
+SAMEA10031320    # 34��54'00.9N 128��27'30.1E
+SAMEA10031321    # 34��54'08.2N 128��27'38.4E
+# -- Malaysia
+SAMEA103892432    # 3.216666667/101.83975
+SAMEA103892477    # 3.71025/101.715
+SAMEA103892478    # 3.303333333/101.62025
+SAMEA103892557    # 5.40594/116.10272
+SAMEA103911206    # no coordinates - country centroid
+# -- Philippines
+SAMEA104409006    # no coordinates - country centroid
+# -- Israel
+SAMEA10021182    # 29.52, 34.93
+SAMEA10021183    # 29.52, 34.93
+SAMEA10021184    # 29.52, 34.93
+SAMEA10021185    # 29.52, 34.93
+SAMEA1013601    # no coordinates - country centroid
+# -- Saudi Arabia
+SAMEA102327418    # 20.1/40.2333
+SAMEA102328168    # 20.1/40.2333
+SAMEA102328918    # 20.1/40.2333
+SAMEA102329668    # 20.1/40.2333
+SAMEA10033093    # no coordinates - country centroid
+# -- Bangladesh
+SAMEA104037032    # no coordinates - country centroid
+# -- Pakistan
+SAMEA104109193    # no coordinates - country centroid
+# -- Nepal
+SAMEA10029420    # no coordinates - country centroid
+# -- Sri Lanka
+SAMEA103892619    # 6.42497/80.41758
+SAMEA103892620    # 6.41782/80.4237
+SAMEA104212519    # 7.873592/80.773137
+SAMEA104212520    # 7.873592/80.773137
+SAMEA110148357    # no coordinates - country centroid
+# -- Singapore
+SAMEA104033264    # 1.3521/103.8198
+SAMEA104033265    # 1.3521/103.8198
+SAMEA104033266    # 1.3521/103.8198
+SAMEA104033267    # 1.3521/103.8198
+SAMEA1021787    # no coordinates - country centroid
+
+# ===== Oceania =====================================================
+# -- Australia
+SAMEA100241668    # no coordinates - country centroid
+# -- New Zealand
+SAMEA103892540    # -43.1805/172.2229
+SAMEA103892541    # -42.7641762/171.6870428
+SAMEA103892542    # -42.30237935/172.1041386
+SAMEA103892628    # -41.766539/172.193165
+SAMEA1033040    # no coordinates - country centroid
+# -- Papua New Guinea
+SAMEA103892453    # -9.4347/147.35164
+SAMEA103892454    # -9.4448/147.34867
+SAMEA103892455    # -9.44475/147.34958
+SAMEA103892456    # -9.43501/147.37553
+SAMEA104430693    # no coordinates - country centroid
+# -- Fiji
+SAMEA110640066    # -18.206965/177.689014
+SAMEA110640067    # -18.206965/177.689014
+SAMEA110640068    # -18.206965/177.689014
+SAMEA110640069    # -18.206965/177.689014
+
+# ===== N.America ===================================================
+# -- USA
+SAMEA10022060    # 41.48/81.71
+SAMEA10022061    # 41.48/81.71
+SAMEA10022062    # 41.48/81.71
+SAMEA10022063    # 41.48/81.71
+# -- Canada
+SAMEA10018246    # 53.53963322/-113.4907633
+SAMEA10018247    # 53.53963322/-113.4907633
+SAMEA10018248    # 53.53963322/-113.4907633
+SAMEA10018249    # 53.53963322/-113.4907633
+# -- Mexico
+SAMEA103892539    # 22.1989/-102.60055
+SAMEA103892591    # 21.21018/-87.19355
+SAMEA103984244    # 21.899667/-93.435333
+SAMEA103984629    # 21.90005/-93.4354
+SAMEA10031315    # no coordinates - country centroid
+# -- Costa Rica
+SAMEA10100499    # 9.9620/83.9509
+SAMEA104452631    # 10°59'N/85°26'W
+SAMEA104452632    # 10°59'N/85°26'W
+SAMEA104452633    # 10°59'N/85°26'W
+SAMEA104428373    # no coordinates - country centroid
+# -- Panama
+SAMEA10147615    # 9.502222/-79.69
+SAMEA103892532    # 8.7611/-82.2177
+SAMEA103892533    # 8.4868/-82.4336
+SAMEA103892534    # 8.7574/-82.26828
+SAMEA104429178    # no coordinates - country centroid
+# -- Cuba
+SAMEA113943301    # 22.1212/-83.971
+SAMEA113943302    # 22.5431/-83.7051
+SAMEA113943303    # 22.651/-83.7133
+SAMEA113943304    # 22.7536/-83.3834
+SAMEA11053032    # no coordinates - country centroid
+# -- Jamaica
+SAMEA118652799    # 18.15141944/-77.31901389
+SAMEA120211575    # 18.15141944/-77.31901389
+SAMEA120296293    # 18.0135/-76.7623
+SAMEA14036350    # 18.012293/-76.85092
+SAMEA115529562    # no coordinates - country centroid
+
+# ===== S.America ===================================================
+# -- Brazil
+SAMEA10254937    # no coordinates - country centroid
+# -- Argentina
+SAMEA10018790    # -33.940833/-69.078333
+SAMEA10018791    # -33.76928/-69.04446
+SAMEA103892579    # -50.445767/-72.780067
+SAMEA103892580    # -49.376367/-72.881183
+SAMEA1029509    # no coordinates - country centroid
+# -- Chile
+SAMEA10018676    # -26.415833/-69.5135
+SAMEA10018677    # -24.102728/-68.434562
+SAMEA10018678    # -25.920726/-69.771709
+SAMEA10018679    # -26.871611/-69.222023
+# -- Peru
+SAMEA104111593    # 12° 02' 43''/77° 01' 52''
+SAMEA104112374    # 12Â° 02' 43''/77Â° 01' 52''
+SAMEA104112375    # 12Â° 02' 43''/77Â° 01' 52''
+SAMEA104112376    # 12Â° 02' 43''/77Â° 01' 52''
+SAMEA10030772    # no coordinates - country centroid
+# -- Colombia
+SAMEA103892433    # -0.3919/-72.0461
+SAMEA103892434    # -0.3466/-72.059
+SAMEA103892436    # -0.3806/-72.236
+SAMEA103892437    # -0.395/-72.08
+SAMEA104156358    # no coordinates - country centroid
+# -- Ecuador
+SAMEA104288480    # 0.0/0.0
+SAMEA104288481    # 0.0/0.0
+SAMEA104288482    # 0.0/0.0
+SAMEA104446104    # -3.98029/-79.0838
+SAMEA104431372    # no coordinates - country centroid
+# -- Uruguay
+SAMEA104288492    # 0.0/0.0
+SAMEA104288493    # 0.0/0.0
+SAMEA104288494    # 0.0/0.0
+SAMEA110132643    # -34.87 -56.17
+SAMEA1029540    # no coordinates - country centroid
+# -- Venezuela
+SAMEA104343418    # 10.500/66.917
+SAMEA104343419    # 10.500/66.917
+SAMEA104343420    # 10.500/66.917
+SAMEA104343421    # 10.500/66.917
+SAMEA11054398    # no coordinates - country centroid
+# -- Bolivia
+SAMEA104211047    # S16.3622, W62.00225
+SAMEA104211048    # S16.3622, W62.00225
+SAMEA104211049    # S16.3622, W62.00225
+SAMEA104211050    # S16.3622, W62.00225
+SAMEA104431383    # no coordinates - country centroid
+
+# ===== Oceans ======================================================
+# -- Atlantic Ocean
+SAMEA103909682    # -9.547472/-13.20925
+SAMEA103928390    # 37.844500/-31.519255
+SAMEA103928391    # 36.230908/--33.904467
+SAMEA104165039    # 79.006800/4.330500
+SAMEA104149385    # no coordinates - country centroid
+# -- Pacific Ocean
+SAMEA10024970    # 33.55/-118.4
+SAMEA10024971    # 33.55/-118.4
+SAMEA10024972    # 33.55/-118.4
+SAMEA10024973    # 33.55/-118.4
+# -- Indian Ocean
+SAMEA104422520    # -33.90716667/37.04216667
+SAMEA104422521    # -33.90716667/37.04216667
+SAMEA104422522    # -33.90716667/37.04216667
+SAMEA104422523    # -33.90716667/37.04216667
+# -- Arctic Ocean
+SAMEA103593418    # no coordinates - country centroid
+# -- Southern Ocean
+SAMEA104335361    # 49,36S; 02,05E
+SAMEA104335362    # 49,36S; 02,05E
+SAMEA104335363    # 49,36S; 02,05E
+SAMEA104335364    # 49,36S; 02,05E
+# -- Mediterranean Sea
+SAMEA10017270    # 38.6375/15.110278
+SAMEA10017271    # 38.6375/15.110278
+SAMEA10017272    # 38.6375/15.110278
+SAMEA10017273    # 38.6375/15.110278
+SAMEA10017439    # no coordinates - country centroid
+# -- North Sea
+SAMEA101026168    # 58.9477/5.6788
+SAMEA101026918    # 78.9235/11.9099
+SAMEA104102140    # 54.42/06.48
+SAMEA104116075    # 55.8355/3.5624
+SAMEA104153006    # no coordinates - country centroid
+# -- Baltic Sea
+SAMEA104056113    # 62°35.17′/19°58.13′
+SAMEA104056114    # 62°35.17′/19°58.13′
+SAMEA104056115    # 62°35.17′/19°58.13′
+SAMEA104102143    # 59.83983° N/23.251° E
+SAMEA103928362    # no coordinates - country centroid
+# -- Tasman Sea
+SAMEA104402594    # -34.1192/151.2267
+SAMEA104402595    # -34.1192/151.2267
+SAMEA104402596    # -34.1192/151.2267
+SAMEA104402597    # -34.1192/151.2267
+
+# ===== Polar =======================================================
+# -- Antarctica
+SAMEA102065668    # -68.40/78.95
+SAMEA104147692    # 68.489 S/78.287 E
+SAMEA104147693    # 68.00514 S/78.18781 E
+SAMEA104147694    # 68.00514 S/78.18781 E
+# -- Greenland
+SAMEA104157545    # 74.308633/-20.302117
+SAMEA104157546    # 74.308633/-20.302117
+SAMEA104157547    # 74.308633/-20.302117
+SAMEA104157548    # 74.308633/-20.302117
+# -- Svalbard
+SAMEA10021137    # 78,133/14,101
+SAMEA10021138    # 78,133/14,101
+SAMEA10021139    # 78,133/14,101
+SAMEA10021140    # 78,133/14,101
+
+# ===== secondary accessions, resolved via NCBI E-utilities =============
+SRS000002
+ERS7699373

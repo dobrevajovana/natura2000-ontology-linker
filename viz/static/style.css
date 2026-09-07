@@ -1,0 +1,33 @@
+/* Additional styles for the Natura 2000 Ontology Linker viz */
+
+/* Ensure full height in Docker/iframe environments */
+html, body {
+  height: 100%;
+  overflow: hidden;
+}
+
+/* Scrollable panels */
+.sidebar::-webkit-scrollbar,
+.detail-panel::-webkit-scrollbar,
+.table-view::-webkit-scrollbar {
+  width: 5px;
+}
+
+.sidebar::-webkit-scrollbar-thumb,
+.detail-panel::-webkit-scrollbar-thumb,
+.table-view::-webkit-scrollbar-thumb {
+  background: #2d4a6e;
+  border-radius: 3px;
+}
+
+/* Table sorting indicator */
+.data-table th[data-sort]::after {
+  content: ' ⇅';
+  font-size: 0.65rem;
+  color: #4a6a8a;
+}
+
+/* Graph container */
+#cy canvas {
+  outline: none;
+}

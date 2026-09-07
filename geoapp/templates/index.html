@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>BioSample Geo &amp; Knowledge Graph Explorer</title>
+
+  <!-- Leaflet -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css"
+          integrity="sha512-h9FcoyWjHcOcmEVkxOfTLnmZFWIH0iZhZT1H2TbOq55xssQGEJHEaIm+PgoUaZbRvQTNTluNOEfb1ZRy6D3BOw=="
+          crossorigin="anonymous" referrerpolicy="no-referrer">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.markercluster/1.5.3/MarkerCluster.css"
+          integrity="sha512-mQ77VzAakzdpWdgfL/lM1ksNy89uFgibRQANsNneSTMD/bj0Y/8+94XMwYhnbzx8eki2hrbPpDm0vD0CiT2lcg=="
+          crossorigin="anonymous" referrerpolicy="no-referrer">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.markercluster/1.5.3/MarkerCluster.Default.css"
+          integrity="sha512-6ZCLMiYwTeli2rVh3XAPxy3YoR5fVxGdH/pz+KMCzRY2M65Emgkw00Yqmhh8qLGeYQ3LbVZGdmOX9KUjSKr0TA=="
+          crossorigin="anonymous" referrerpolicy="no-referrer">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.css"
+          integrity="sha512-gc3xjCmIy673V6MyOAZhIW93xhM9ei1I+gLbmFjUHIjocENRsLX/QUE1htk5q1XV2D/iie/VQ8DXI6Vu8bexvQ=="
+          crossorigin="anonymous" referrerpolicy="no-referrer">
+
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+
+  <header class="topbar">
+    <h1>BioSample Geo &amp; Knowledge Graph Explorer</h1>
+    <div class="topbar-actions">
+      <button id="btn-reload" class="btn btn-ghost" title="Re-read data files from disk">Reload data</button>
+      <span id="load-status" class="load-status"></span>
+    </div>
+  </header>
+
+  <div id="pipeline-banner" class="banner banner-warn" {% if samples_loaded %}hidden{% endif %}>
+    <span id="pipeline-banner-text">{% if load_error %}Data files could not be read ({{ load_error }}).{% else %}Run the pipeline first — no sample data has been generated yet (expected at the path in geoapp/config.py: SAMPLES_JSON / KG_JSON).{% endif %}</span>
+  </div>
+
+  <div id="fetch-error-banner" class="banner banner-error" hidden>
+    <span id="fetch-error-text">Could not reach the server.</span>
+  </div>
+
+  <div class="layout">
+    <!-- Left control panel -->
+    <aside class="panel-controls">
+      <section class="control-group">
+        <label for="search-input">Search</label>
+        <input id="search-input" type="search" placeholder="accession, title, organism...">
+      </section>
+
+      <section class="control-group">
+        <label for="country-select">Country</label>
+        <select id="country-select">
+          <option value="">All countries</option>
+        </select>
+      </section>
+
+      <section class="control-group">
+        <label for="region-select">Region</label>
+        <select id="region-select">
+          <option value="">All regions</option>
+        </select>
+      </section>
+
+      <section class="control-group">
+        <label>Precision</label>
+        <div id="precision-checks" class="check-list"></div>
+      </section>
+
+      <section class="control-group">
+        <label>Ontology sources</label>
+        <div id="ontology-checks" class="check-list"></div>
+      </section>
+
+      <section class="control-group">
+        <label>Archives</label>
+        <div id="archive-checks" class="check-list"></div>
+      </section>
+
+      <section class="control-group">
+        <label for="confidence-slider">Min ontology confidence: <span id="confidence-value">0.70</span></label>
+        <input id="confidence-slider" type="range" min="0" max="1" step="0.01" value="0.7">
+      </section>
+
+      <section class="control-group control-inline">
+        <label for="has-coords-toggle">
+          <input id="has-coords-toggle" type="checkbox">
+          Only samples with coordinates
+        </label>
+        <label for="show-archives-toggle" title="Every sample sits in all three archives, so these add three hubs that pull the whole graph into a ball. Archives are always listed in the detail panel.">
+          <input id="show-archives-toggle" type="checkbox">
+          Show archive nodes in graph
+        </label>
+      </section>
+
+      <section class="control-group">
+        <label>Map selection</label>
+        <div class="btn-row">
+          <button id="btn-select-box" class="btn btn-toggle" data-mode="box">Select box</button>
+          <button id="btn-select-radius" class="btn btn-toggle" data-mode="radius">Select radius</button>
+        </div>
+        <div id="selection-summary" class="selection-summary"></div>
+      </section>
+
+      <section class="control-group btn-row">
+        <button id="btn-reset-filters" class="btn">Reset filters</button>
+        <button id="btn-clear-selection" class="btn">Clear map selection</button>
+      </section>
+
+      <section class="control-group stats-strip">
+        <h3>Stats</h3>
+        <dl id="stats-list" class="stats-list">
+          <div><dt>Samples</dt><dd id="stat-samples">0</dd></div>
+          <div><dt>With coordinates</dt><dd id="stat-coords">0</dd></div>
+          <div><dt>Countries</dt><dd id="stat-countries">0</dd></div>
+          <div><dt>Ontology terms</dt><dd id="stat-terms">0</dd></div>
+          <div><dt>Graph nodes</dt><dd id="stat-nodes">0</dd></div>
+          <div><dt>Graph edges</dt><dd id="stat-edges">0</dd></div>
+        </dl>
+      </section>
+
+      <section class="control-group">
+        <h3>Legend</h3>
+        <div id="legend-precision" class="legend-block">
+          <div class="legend-row"><span class="legend-swatch legend-precision-coordinates"></span> Coordinates (precise)</div>
+          <div class="legend-row"><span class="legend-swatch legend-precision-locality"></span> Locality (approx.)</div>
+          <div class="legend-row"><span class="legend-swatch legend-precision-country"></span> Country centroid (rough guess — not a real sample location)</div>
+        </div>
+        <div id="legend-node-kinds" class="legend-block"></div>
+      </section>
+    </aside>
+
+    <!-- Main area: map + graph -->
+    <main class="panel-main">
+      <div class="pane-toggle">
+        <button class="pane-toggle-btn active" data-pane="split">Split</button>
+        <button class="pane-toggle-btn" data-pane="map">Map full</button>
+        <button class="pane-toggle-btn" data-pane="graph">Graph full</button>
+      </div>
+
+      <div id="split-container" class="split-container">
+        <section id="map-pane" class="pane pane-map">
+          <div id="map" class="map-el"></div>
+          <div id="map-loading" class="pane-overlay" hidden>Loading…</div>
+          <div id="map-empty" class="pane-overlay" hidden>No samples match the current filters.</div>
+        </section>
+
+        <div id="splitter" class="splitter" title="Drag to resize"></div>
+
+        <section id="graph-pane" class="pane pane-graph">
+          <div id="cy" class="cy-el"></div>
+          <div id="graph-loading" class="pane-overlay" hidden>Loading…</div>
+          <div id="graph-empty" class="pane-overlay" hidden>No graph data for the current filters.</div>
+          <div id="graph-scale-hint" class="graph-hint" hidden></div>
+        </section>
+      </div>
+    </main>
+  </div>
+
+  <!-- Detail panel (slide-over) -->
+  <aside id="detail-panel" class="detail-panel" hidden>
+    <button id="detail-close" class="btn btn-ghost detail-close">&times;</button>
+    <div id="detail-content" class="detail-content"></div>
+  </aside>
+
+  <!-- Leaflet -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"
+          integrity="sha512-puJW3E/qXDqYp9IfhAI54BJEaWIfloJ7JWs7OeD5i6ruC9JZL1gERT1wjtwXFlh7CjE7ZJ+/vcRZRkIYIb6p4g=="
+          crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.markercluster/1.5.3/leaflet.markercluster.js"
+          integrity="sha512-OFs3W4DIZ5ZkrDhBFtsCP6JXtMEDGmhl0QPlmWYBJay40TT1n3gt2Xuw8Pf/iezgW9CdabjkNChRqozl/YADmg=="
+          crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.js"
+          integrity="sha512-ozq8xQKq6urvuU6jNgkfqAmT7jKN2XumbrX1JiB3TnF7tI48DPI4Gy1GXKD/V3EExgAs1V+pRO7vwtS1LHg0Gw=="
+          crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+
+  <!-- Cytoscape -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/cytoscape/3.30.2/cytoscape.min.js"
+          integrity="sha512-EY3U1MWdgKx0P1dqTE4inlKz2cpXtWpsR1YUyD855Hs6RL/A0cyvrKh60EpE8wDZ814cTe1KgRK+sG0Rn792vQ=="
+          crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+
+  <script src="{{ url_for('static', filename='app.js') }}"></script>
+</body>
+</html>

@@ -1,0 +1,20 @@
+FROM python:3.11-slim
+
+WORKDIR /app
+
+COPY requirements.geoapp.txt .
+RUN pip install --no-cache-dir -r requirements.geoapp.txt
+
+COPY geoapp/ ./geoapp/
+COPY accessions.txt .
+
+ENV GEO_DATA_DIR=/app/data \
+    GEO_HOST=0.0.0.0 \
+    GEO_PORT=8090 \
+    PYTHONUNBUFFERED=1
+
+EXPOSE 8090
+
+# Default: serve the explorer. Run the pipeline with:
+#   docker compose run --rm geoapp-pipeline
+CMD ["python", "-m", "geoapp.app"]

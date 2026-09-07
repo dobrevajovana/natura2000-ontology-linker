@@ -1,0 +1,33 @@
+version: "3.9"
+
+services:
+  pipeline:
+    build:
+      context: .
+      dockerfile: Dockerfile.pipeline
+    volumes:
+      - natura2000_data:/data
+    env_file:
+      - .env
+    environment:
+      - DATA_DIR=/data
+    profiles:
+      - pipeline
+
+  viz:
+    build:
+      context: .
+      dockerfile: Dockerfile.viz
+    volumes:
+      - natura2000_data:/data
+    env_file:
+      - .env
+    ports:
+      - "${VIZ_PORT:-8080}:8080"
+    environment:
+      - DATA_DIR=/data
+    profiles:
+      - viz
+
+volumes:
+  natura2000_data:

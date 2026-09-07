@@ -1,0 +1,39 @@
+# BioSample geo knowledge-graph app.
+# Kept separate from docker-compose.yml so the existing Natura 2000 pipeline
+# and viz services are untouched.
+#
+#   docker compose -f docker-compose.geoapp.yml run --rm geoapp-pipeline
+#   docker compose -f docker-compose.geoapp.yml up geoapp
+#   -> http://localhost:8090
+
+services:
+  # One-shot: fetch -> geolocate -> link ontologies -> build the graph.
+  geoapp-pipeline:
+    build:
+      context: .
+      dockerfile: Dockerfile.geoapp
+    volumes:
+      - ./data:/app/data
+      - ./accessions.txt:/app/accessions.txt:ro
+    environment:
+      GEO_DATA_DIR: /app/data
+      NCBI_API_KEY: ${NCBI_API_KEY:-}
+      NCBI_EMAIL: ${NCBI_EMAIL:-}
+      GEO_FETCH_WORKERS: ${GEO_FETCH_WORKERS:-8}
+      GEO_OLS4_ONTOLOGIES: ${GEO_OLS4_ONTOLOGIES:-envo,ncbitaxon,uberon,po}
+    command: ["python", "-m", "geoapp.cli", "--accessions", "/app/accessions.txt"]
+
+  # Long-running: the map + knowledge-graph explorer.
+  geoapp:
+    build:
+      context: .
+      dockerfile: Dockerfile.geoapp
+    ports:
+      - "${GEO_PORT:-8090}:8090"
+    volumes:
+      - ./data:/app/data
+    environment:
+      GEO_DATA_DIR: /app/data
+      GEO_HOST: 0.0.0.0
+      GEO_PORT: 8090
+    command: ["python", "-m", "geoapp.app"]

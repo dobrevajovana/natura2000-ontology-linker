@@ -1,0 +1,21 @@
+# Local configuration. `.env` is ignored as well as `.env.local`: it is where an
+# NCBI_API_KEY would live, and a key must never reach the repository.
+.env
+.env.*
+!.env.example
+
+# Pipeline artefacts and the on-disk HTTP cache: all regenerable, and large.
+data/
+*.log
+
+# Python
+*.pyc
+__pycache__/
+*.egg-info/
+dist/
+build/
+.venv/
+venv/
+
+# macOS
+.DS_Store
