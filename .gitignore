@@ -19,3 +19,19 @@ venv/
 
 # macOS
 .DS_Store
+
+# Deployment and server notes. Host addresses, SSH targets, admin-panel URLs and
+# server-side venv/env paths are infrastructure, not source: they must never be
+# committed, and this repository is not where they are documented.
+*.env
+env/
+notes*.md
+NOTES*.md
+deploy*.md
+DEPLOY*.md
+server*.md
+*runbook*
+*.pem
+*.key
+id_rsa*
+.ssh/
