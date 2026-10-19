@@ -755,12 +755,9 @@ def _fetch_gbif_checklist(dataset_key: str, annex: str, directive: str,
             clazz = s.get("class", "")
             group = _gbif_class_to_group(kingdom, clazz)
 
-            common = ""
-            vernaculars = s.get("vernacularNames", [])
-            if vernaculars:
-                en = next((v["vernacularName"] for v in vernaculars
-                           if v.get("language") == "eng"), None)
-                common = en or vernaculars[0].get("vernacularName", "")
+            # English only: some checklists carry e.g. Ukrainian names, which must not become the English label
+            common = next((v["vernacularName"] for v in s.get("vernacularNames", [])
+                           if v.get("language") in ("eng", "en") and v.get("vernacularName")), "")
 
             label = f"{sci} ({common})" if common else sci
             terms.append({
@@ -1016,6 +1013,27 @@ def build_statuses() -> list[dict]:
 # Main entry point
 # ---------------------------------------------------------------------------
 
+def stratified_sample(terms: list[dict], limit: int) -> list[dict]:
+    """Pick up to `limit` terms round-robin across categories and directives.
+
+    Terms arrive grouped (all habitats first), so a plain slice would test only
+    habitats. Interleaving also keeps later dry-run slices (the linker takes the
+    first 20) representative of every category.
+    """
+    groups: dict[tuple, list[dict]] = {}
+    for t in terms:
+        groups.setdefault((t.get("category", ""), t.get("directive", "")), []).append(t)
+    queues = list(groups.values())
+    sample: list[dict] = []
+    i = 0
+    while len(sample) < limit and any(queues):
+        q = queues[i % len(queues)]
+        if q:
+            sample.append(q.pop(0))
+        i += 1
+    return sample
+
+
 def run_scraper(data_dir: str, dry_run: bool = False) -> list[dict]:
     """Scrape all Natura 2000 terms and save to {data_dir}/terms.json."""
     logger.info("Starting scraper (dry_run=%s)", dry_run)
@@ -1047,8 +1065,8 @@ def run_scraper(data_dir: str, dry_run: bool = False) -> list[dict]:
 
     if dry_run:
         limit = DRY_RUN_SIZE
-        logger.info("Dry-run mode: limiting to %d terms", limit)
-        all_terms = all_terms[:limit]
+        logger.info("Dry-run mode: limiting to %d terms, sampled across categories", limit)
+        all_terms = stratified_sample(all_terms, limit)
 
     output_path = Path(data_dir) / "terms.json"
     with output_path.open("w", encoding="utf-8") as fh:

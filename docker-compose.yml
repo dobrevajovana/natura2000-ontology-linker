@@ -1,5 +1,3 @@
-version: "3.9"
-
 services:
   pipeline:
     build:
@@ -8,7 +6,8 @@ services:
     volumes:
       - natura2000_data:/data
     env_file:
-      - .env
+      - path: .env          # optional: copy .env.example to .env to change settings
+        required: false
     environment:
       - DATA_DIR=/data
     profiles:
@@ -21,7 +20,8 @@ services:
     volumes:
       - natura2000_data:/data
     env_file:
-      - .env
+      - path: .env          # optional: copy .env.example to .env to change settings
+        required: false
     ports:
       - "${VIZ_PORT:-8080}:8080"
     environment:

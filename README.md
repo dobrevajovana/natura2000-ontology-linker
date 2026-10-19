@@ -62,21 +62,17 @@ Built for the AAU Bio Collaboration team to enable semantic interoperability bet
 ## Quick Start (Docker)
 
 ```bash
-# Clone the repository
-git clone <repo-url>
+git clone https://github.com/dobrevajovana/natura2000-ontology-linker.git
 cd natura2000-ontology-linker
 
-# Optional: edit thresholds and settings
-cp .env .env.local
+# Optional: change thresholds and settings (everything has a default)
+cp .env.example .env
 
-# Run the full data pipeline
-docker-compose --profile pipeline up
+# Run the full data pipeline (about 20 minutes: it is polite to public APIs)
+docker compose --profile pipeline up
 
-# Start the visualization (after pipeline completes)
-docker-compose --profile viz up
-
-# Or run both in sequence
-docker-compose --profile pipeline --profile viz up
+# Start the visualization once the pipeline has finished
+docker compose --profile viz up
 ```
 
 Then open **http://localhost:8080** in your browser.
@@ -127,9 +123,9 @@ All settings are in `.env`:
 | `SIMILARITY_EXACT` | `0.85` | Cosine similarity threshold for `skos:exactMatch` |
 | `SIMILARITY_CLOSE` | `0.70` | Threshold for `skos:closeMatch` |
 | `SIMILARITY_RELATED` | `0.55` | Threshold for `skos:relatedMatch` |
-| `OLS4_ONTOLOGIES` | `envo,ncbitaxon,chebi` | Ontologies to query via OLS4 API |
 | `EMBEDDING_MODEL` | `all-MiniLM-L6-v2` | SentenceTransformers model |
-| `API_RATE_LIMIT` | `1.0` | Seconds between external API calls |
+| `API_RATE_LIMIT` | `1.0` | Seconds between calls to Wikidata, DBpedia and OLS4 |
+| `GBIF_RATE_LIMIT` | `0.2` | Seconds between GBIF name-match calls |
 | `VIZ_PORT` | `8080` | Visualization server port |
 | `DRY_RUN_SIZE` | `50` | Number of terms to process in dry-run mode |
 
@@ -218,27 +214,22 @@ owl:Thing
 
 **File:** `pipeline/linker.py`
 
-Queries three external knowledge bases for matching terms.
+Exact identifiers first, search second. Most links come from identifiers that curated databases already share, so they are exact rather than guessed.
 
-**Wikidata**
-- Species: SPARQL query on property P225 (taxon name) → high-confidence exact matches
-- Habitats: Label-based SPARQL search
-- Rate-limited, 30s timeout
+| Term type | Source | How | Match |
+|---|---|---|---|
+| Habitats | Wikidata | Annex I code on the item (**P6436**), one bulk SPARQL query | `exactMatch` |
+| Habitats | EUNIS | EUNIS habitat ID on the same Wikidata items (**P6681**) — the Annex I ↔ EUNIS crosswalk | `exactMatch` |
+| Habitats | ENVO (OLS4) | search on the name and its singular form; scored on label **and synonyms** | exact / close; weak top hits become `relatedMatch` flagged for expert review |
+| Species | GBIF | backbone name match; synonyms report their accepted name | `exactMatch` |
+| Species | Wikidata | taxon name (**P225**) in bulk, retried under GBIF's accepted name for renamed species | `exactMatch` (homonyms → `closeMatch` + review) |
+| Species | NCBITaxon | NCBI taxonomy ID on the Wikidata item (**P685**); otherwise an *exact* OLS4 name search — never fuzzy | `exactMatch` |
+| Species | DBpedia | `dbr:Genus_species`, existence checked in bulk | `exactMatch` |
+| Statuses | Wikidata | the IUCN category items | `exactMatch` |
 
-**DBpedia**
-- DBpedia Lookup API for all terms (label search, top 3 results)
-- Direct URI construction for species: `dbr:Canis_lupus` — validated via ASK query
-- Scores adjusted by string similarity (SequenceMatcher)
+Biogeographical regions have no curated counterpart in these sources yet and are left for experts.
 
-**OLS4 (EBI)**
-- `https://www.ebi.ac.uk/ols4/api/search` REST API
-- ENVO (Environment Ontology) for habitats
-- NCBITaxon for species
-- Top 3 results per ontology
-
-All matches are classified as `skos:exactMatch` or `skos:closeMatch` based on string similarity and result rank.
-
-**Output:** `data/direct_mappings.json`
+**Outputs:** `data/direct_mappings.json`, `data/envo_candidates.json` (every ENVO class seen per habitat, input to step 4)
 
 ---
 
@@ -246,24 +237,18 @@ All matches are classified as `skos:exactMatch` or `skos:closeMatch` based on st
 
 **File:** `pipeline/vector_match.py`
 
-Finds semantic matches between Natura 2000 terms and external ontology terms using dense vector similarity.
+Scores each **habitat** against the ENVO classes OLS4 returned, by meaning: the habitat's name and definition against each class's label, synonyms and definition (SentenceTransformers embeddings, FAISS inner-product index). When the embedding agrees with a lexical hit, confidence goes up and a review flag is cleared.
 
-**Process:**
-1. Encode all Natura 2000 terms using SentenceTransformers (text = `label | scientific_name | definition[:200]`)
-2. Build FAISS `IndexFlatIP` (inner-product index on L2-normalized vectors = cosine similarity)
-3. For each Natura 2000 term, retrieve top-5 nearest neighbours from each target ontology corpus
-4. Apply similarity thresholds to assign match type
-5. Merge with Step 3 direct mappings (deduplicate by source+target URI, boost confidence for combined matches)
+Species are not embedded: they are identified by their binomial, which step 3 already resolved exactly. Embedding Latin names would pair unrelated taxa that merely sound alike.
 
-**Thresholds:**
 | Score | Match type |
 |---|---|
 | ≥ 0.85 | `skos:exactMatch` |
 | 0.70–0.85 | `skos:closeMatch` |
-| 0.55–0.70 | `skos:relatedMatch` |
+| 0.55–0.70 | `skos:relatedMatch` (flagged for expert review) |
 | < 0.55 | discarded |
 
-**Outputs:** `data/mappings.json` (unified JSON), `data/mappings.ttl` (SKOS Turtle)
+**Outputs:** `data/mappings.json`, `data/mappings.ttl` (SKOS, with one `owl:Axiom` per mapping carrying its confidence and method), `data/mappings.sssom.tsv` ([SSSOM](https://w3id.org/sssom), the OBO standard for sharing mappings)
 
 ---
 
@@ -271,13 +256,16 @@ Finds semantic matches between Natura 2000 terms and external ontology terms usi
 
 | File | Description |
 |---|---|
-| `data/terms.json` | Natura 2000 term register (~150 terms) |
-| `data/ontology.ttl` | OWL 2 ontology in Turtle format |
-| `data/ontology.jsonld` | OWL 2 ontology in JSON-LD format |
-| `data/direct_mappings.json` | Mappings from SPARQL/API queries (Step 3) |
-| `data/mappings.json` | Unified final mappings (Step 3 + Step 4) |
-| `data/mappings.ttl` | SKOS mappings in Turtle format |
+| `data/terms.json` | Natura 2000 term register (habitats, species, regions, statuses) |
+| `data/ontology.ttl` / `.jsonld` | OWL 2 ontology (Turtle / JSON-LD) |
+| `data/direct_mappings.json` | Identifier and lexical mappings (step 3) |
+| `data/envo_candidates.json` | ENVO classes considered for each habitat (step 3 → 4) |
+| `data/mappings.json` | Unified final mappings, read by the visualization |
+| `data/mappings.ttl` | SKOS mappings with per-mapping confidence |
+| `data/mappings.sssom.tsv` | The same mappings in SSSOM |
 | `data/pipeline.log` | Full pipeline run log |
+
+Mappings with `"review": true` are candidates for expert curation, not settled links.
 
 ---
 
@@ -287,15 +275,15 @@ The web app at http://localhost:8080 provides an interactive view of the linked 
 
 **Graph view:**
 - Force-directed layout showing Natura 2000 terms as larger colored nodes
-- External ontology matches as smaller shape-coded nodes (diamond=Wikidata, rectangle=DBpedia, circle=OLS4)
-- Edge color indicates source: blue (Wikidata), orange (DBpedia), green (OLS4)
+- External matches as smaller shape-coded nodes (diamond=Wikidata, rectangle=DBpedia, circle=OLS4/ENVO/NCBITaxon, triangle=GBIF, hexagon=EUNIS)
+- Edge color indicates source: blue (Wikidata), orange (DBpedia), green (OLS4), purple (GBIF), gold (EUNIS)
 - Edge style indicates match type: solid (exactMatch), dashed (closeMatch), dotted (relatedMatch)
 - Edge thickness scales with confidence score
 
 **Controls:**
 - **Search bar** — real-time filtering by label or scientific name
 - **Category checkboxes** — show/hide habitats, species, regions, statuses
-- **Ontology checkboxes** — show/hide Wikidata, DBpedia, OLS4 connections
+- **Ontology checkboxes** — show/hide Wikidata, DBpedia, OLS4, GBIF and EUNIS connections
 - **Confidence slider** — hide matches below threshold (default 0.50)
 - **Table view** — sortable tabular alternative showing match counts per ontology
 
@@ -315,7 +303,7 @@ Click any node to see full term information: label, category, EU code, scientifi
 
 Query parameters for `/api/graph`:
 - `category=habitat,species` — filter by category
-- `ontology=wikidata,ols4` — filter by ontology
+- `ontology=wikidata,ols4,gbif,eunis,dbpedia` — filter by target
 - `min_confidence=0.7` — minimum confidence threshold
 - `search=wolf` — text search
 
@@ -324,8 +312,8 @@ Query parameters for `/api/graph`:
 ## Notes for the Bio Team
 
 - The visualization works fully **offline** once the pipeline has run — no live API calls from the browser
-- Use `--dry-run` flag for quick testing (processes ~50 terms, completes in minutes)
-- All external API calls are rate-limited to 1 request/second per the terms of service of each provider
+- Use `--dry-run` for quick testing: 50 terms sampled across every category (habitats, both directives' species, regions, statuses); finishes in under a minute
+- Calls to Wikidata, DBpedia and OLS4 are rate-limited (1/s) and batched where the endpoint allows; GBIF's name matcher, built for bulk use, gets 5/s
 - If any external service is unavailable, the pipeline logs a warning and continues — it will never crash on API failures
 - Check `data/pipeline.log` for detailed progress and any warnings during the pipeline run
 - To use the heavier SapBERT model for better biomedical term matching, set `EMBEDDING_MODEL=cambridgeltl/SapBERT-from-PubMedBERT` in `.env` (requires ~2GB more RAM)
@@ -336,7 +324,7 @@ Query parameters for `/api/graph`:
 ## Troubleshooting
 
 **"Pipeline data not found" in browser**
-Run the pipeline first: `docker-compose --profile pipeline up`
+Run the pipeline first: `docker compose --profile pipeline up`
 
 **External API timeouts during pipeline**
 Normal — public endpoints can be slow. The pipeline logs these and continues. Increase `API_RATE_LIMIT` if needed.
@@ -349,6 +337,17 @@ Change `VIZ_PORT` in `.env` to another port (e.g., 8081).
 
 **SPARQL queries returning no results**
 Wikidata and DBpedia SPARQL endpoints occasionally have downtime. Run Step 3 again: `python -m pipeline.main --steps 3 --data-dir ./data`
+
+---
+
+## Tests
+
+```bash
+pip install pytest
+python -m pytest -q
+```
+
+The tests are offline (no network, no model download) and cover sampling, label cleaning, code- and name-based linking, synonym handling, homonym flagging, match thresholds, merging, SSSOM output, ontology individuals and the geo app's coordinate parsing.
 
 ---
 

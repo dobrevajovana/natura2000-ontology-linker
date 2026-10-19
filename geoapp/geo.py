@@ -68,6 +68,14 @@ def _validate_latlon(lat: float, lon: float) -> Optional[tuple[float, float]]:
         lat, lon = lon, lat
     if abs(lat) > 90 or abs(lon) > 180:
         return None
+    # Exactly 0/0 is Null Island: the conventional placeholder a submitter or
+    # pipeline leaves behind when coordinates were never recorded. Real records
+    # in this dataset pair it with Ecuador and Uruguay, so honouring it would
+    # plant those samples in the Gulf of Guinea and label the guess "precise".
+    # Rejecting it lets locate() fall through to the country centroid, which is
+    # both correct and honestly labelled.
+    if lat == 0.0 and lon == 0.0:
+        return None
     return lat, lon
 
 

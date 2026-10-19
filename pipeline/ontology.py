@@ -92,6 +92,11 @@ def _habitat_subclass(term: dict) -> URIRef:
     return mapping.get(first, N2K.Habitat)
 
 
+def _term_id(category: str, label: str) -> str:
+    """Mirror of scraper.make_id(), so fixed individuals and scraped terms share URIs."""
+    return f"{category}_" + re.sub(r"[^a-z0-9]+", "_", label.lower()).strip("_")[:60]
+
+
 def _safe_uri_fragment(text: str) -> str:
     return re.sub(r"[^a-zA-Z0-9_]", "_", text).strip("_")[:80]
 
@@ -243,13 +248,15 @@ def build_ontology(terms: list[dict], data_dir: str) -> None:
     logger.info("Creating biogeographical region individuals")
 
     region_data = [
-        ("Alpine", "ALP"), ("Atlantic", "ATL"), ("BlackSea", "BLS"),
+        ("Alpine", "ALP"), ("Atlantic", "ATL"), ("Black Sea", "BLS"),
         ("Boreal", "BOR"), ("Continental", "CON"), ("Macaronesian", "MAC"),
         ("Mediterranean", "MED"), ("Pannonian", "PAN"), ("Steppic", "STE"),
     ]
+    # Same identifiers as the scraper's make_id(), so each region is one individual, not two
     for name, code in region_data:
-        uri = N2K[f"region_{name}"]
+        uri = N2K[_term_id("region", name)]
         g.add((uri, RDF.type, N2K.BiogeographicalRegion))
+        g.add((uri, RDF.type, OWL.NamedIndividual))
         g.add((uri, RDFS.label, Literal(name, lang="en")))
         g.add((uri, N2K.euCode, Literal(code)))
 
@@ -260,18 +267,21 @@ def build_ontology(terms: list[dict], data_dir: str) -> None:
         ("NT", "Near Threatened"), ("LC", "Least Concern"), ("DD", "Data Deficient"),
     ]
     for code, label in status_data:
-        uri = N2K[f"status_{code}"]
+        uri = N2K[_term_id("status", code)]
         g.add((uri, RDF.type, N2K.ConservationStatus))
+        g.add((uri, RDF.type, OWL.NamedIndividual))
         g.add((uri, RDFS.label, Literal(label, lang="en")))
         g.add((uri, N2K.euCode, Literal(code)))
 
     # Fixed individuals: directives
     logger.info("Creating directive individuals")
     g.add((N2K.HabitatsDirective, RDF.type, N2K.Directive))
+    g.add((N2K.HabitatsDirective, RDF.type, OWL.NamedIndividual))
     g.add((N2K.HabitatsDirective, RDFS.label, Literal("Habitats Directive", lang="en")))
     g.add((N2K.HabitatsDirective, DC.identifier, Literal("92/43/EEC")))
 
     g.add((N2K.BirdsDirective, RDF.type, N2K.Directive))
+    g.add((N2K.BirdsDirective, RDF.type, OWL.NamedIndividual))
     g.add((N2K.BirdsDirective, RDFS.label, Literal("Birds Directive", lang="en")))
     g.add((N2K.BirdsDirective, DC.identifier, Literal("2009/147/EC")))
 
@@ -297,6 +307,7 @@ def build_ontology(terms: list[dict], data_dir: str) -> None:
             cls = N2K.Term
 
         g.add((uri, RDF.type, cls))
+        g.add((uri, RDF.type, OWL.NamedIndividual))
         g.add((uri, RDFS.label, Literal(term.get("label", tid), lang="en")))
 
         if term.get("definition"):

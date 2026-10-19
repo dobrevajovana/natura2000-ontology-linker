@@ -57,6 +57,15 @@ def _load_data() -> tuple[list[dict], list[dict]]:
     return _terms, _mappings
 
 
+def _display_ontology(m: dict) -> str:
+    """Viewer category for a mapping's target: wikidata, dbpedia, gbif, eunis or ols4 (ENVO/NCBITaxon)."""
+    ont = m.get("source_ontology", "")
+    for k in ("wikidata", "dbpedia", "gbif", "eunis"):
+        if k in ont:
+            return k
+    return "ols4"
+
+
 def _data_missing() -> bool:
     return not (DATA_DIR / "terms.json").exists()
 
@@ -125,7 +134,7 @@ def api_graph():
             if m["source_id"] in included_ids
             and m.get("confidence", 0.0) >= min_confidence
             and (allowed_ontologies is None
-                 or any(ont in m.get("source_ontology", "") for ont in allowed_ontologies))
+                 or _display_ontology(m) in allowed_ontologies)
         ]
 
         # Build Cytoscape nodes
@@ -150,14 +159,7 @@ def api_graph():
             uri = m["target_uri"]
             node_id = _uri_to_node_id(uri)
             if node_id not in ext_nodes:
-                ont = m.get("source_ontology", "unknown")
-                # Normalize ontology name for display/filtering
-                if "wikidata" in ont:
-                    ont_display = "wikidata"
-                elif "dbpedia" in ont:
-                    ont_display = "dbpedia"
-                else:
-                    ont_display = "ols4"
+                ont_display = _display_ontology(m)
                 ext_nodes[node_id] = {
                     "data": {
                         "id": node_id,
@@ -174,13 +176,7 @@ def api_graph():
         for idx, m in enumerate(filtered_mappings):
             source_node = f"n2k_{m['source_id']}"
             target_node = _uri_to_node_id(m["target_uri"])
-            ont = m.get("source_ontology", "unknown")
-            if "wikidata" in ont:
-                ont_display = "wikidata"
-            elif "dbpedia" in ont:
-                ont_display = "dbpedia"
-            else:
-                ont_display = "ols4"
+            ont_display = _display_ontology(m)
             edges.append({
                 "data": {
                     "id": f"edge_{idx}",
@@ -245,13 +241,7 @@ def api_stats():
         total_confidence = 0.0
 
         for m in mappings:
-            ont = m.get("source_ontology", "unknown")
-            if "wikidata" in ont:
-                k = "wikidata"
-            elif "dbpedia" in ont:
-                k = "dbpedia"
-            else:
-                k = "ols4"
+            k = _display_ontology(m)
             mappings_by_ont[k] = mappings_by_ont.get(k, 0) + 1
 
             mt = m.get("match_type", "skos:closeMatch")

@@ -1,0 +1,12 @@
+# Keep the build context small and free of local state.
+.git
+.venv
+venv
+data
+tests
+__pycache__
+*.pyc
+.env
+.env.*
+.DS_Store
+*.log

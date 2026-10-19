@@ -8,10 +8,12 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
 COPY requirements.pipeline.txt .
-RUN pip install --no-cache-dir -r requirements.pipeline.txt
+# CPU-only PyTorch: the default Linux wheel bundles CUDA (~2.5 GB) that the embedding step never uses
+RUN pip install --no-cache-dir torch --index-url https://download.pytorch.org/whl/cpu \
+ && pip install --no-cache-dir -r requirements.pipeline.txt
 
 COPY pipeline/ ./pipeline/
-COPY .env .
+# Settings come from docker-compose's env_file at run time; .env is never baked into the image.
 
 RUN mkdir -p /data
 

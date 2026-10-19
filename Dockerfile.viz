@@ -6,7 +6,6 @@ COPY requirements.viz.txt .
 RUN pip install --no-cache-dir -r requirements.viz.txt
 
 COPY viz/ ./viz/
-COPY .env .
 
 RUN mkdir -p /data
 

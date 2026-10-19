@@ -14,6 +14,10 @@ import traceback
 
 from dotenv import load_dotenv
 
+# FAISS and PyTorch each load an OpenMP runtime; on macOS multi-threaded search then crashes
+# without a traceback. Set before any of them is imported.
+os.environ.setdefault("OMP_NUM_THREADS", "1")
+
 # Load .env from the project root (one level up from pipeline/)
 _project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 load_dotenv(os.path.join(_project_root, ".env"))
@@ -61,6 +65,8 @@ def setup_logging(data_dir: str) -> logging.Logger:
             logging.FileHandler(os.path.join(data_dir, "pipeline.log")),
         ],
     )
+    for noisy in ("httpx", "urllib3", "huggingface_hub", "sentence_transformers"):
+        logging.getLogger(noisy).setLevel(logging.WARNING)
     return logging.getLogger(__name__)
 
 
