@@ -293,6 +293,16 @@ def api_terms():
         return _add_cors(jsonify({"error": str(exc)})), 500
 
 
+@app.route("/api/geo/samples")
+def api_geo_samples():
+    """Environmental samples with coordinates, written by the geoapp (geo_samples.geojson)."""
+    path = DATA_DIR / "geo_samples.geojson"
+    if not path.exists():
+        return _add_cors(jsonify({"type": "FeatureCollection", "features": []}))
+    with path.open("r", encoding="utf-8") as fh:
+        return _add_cors(jsonify(json.load(fh)))
+
+
 if __name__ == "__main__":
     port = int(os.environ.get("VIZ_PORT", 8080))
     logger.info("Starting visualization server on port %d, data dir: %s", port, DATA_DIR)

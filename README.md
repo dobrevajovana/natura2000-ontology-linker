@@ -54,6 +54,7 @@ Built for the AAU Bio Collaboration team to enable semantic interoperability bet
   • Search, filter, confidence slider
   • Node click → full detail + all linked terms
   • Table view alternative
+  • Map view: EU range, GBIF observations, Natura 2000 sites
   http://localhost:8080
 ```
 
@@ -286,6 +287,10 @@ The web app at http://localhost:8080 provides an interactive view of the linked 
 - **Ontology checkboxes** — show/hide Wikidata, DBpedia, OLS4, GBIF and EUNIS connections
 - **Confidence slider** — hide matches below threshold (default 0.50)
 - **Table view** — sortable tabular alternative showing match counts per ontology
+- **Map view** — pick a habitat or species (search, or **Show on map** in the detail panel) to see where it lives:
+  - its EU range and conservation status from the Article 17 report 2019–2024 (EEA)
+  - GBIF observations, using the GBIF link the pipeline found (birds have no Article 17 map, so only GBIF is shown)
+  - optional layers: Natura 2000 protected sites (EEA) and the environmental DNA samples from the geo app
 
 **Node detail panel:**
 Click any node to see full term information: label, category, EU code, scientific name, definition, directive/annex, source URL, and all linked external terms with confidence scores and match types.
@@ -300,6 +305,7 @@ Click any node to see full term information: label, category, EU code, scientifi
 | `GET /api/term/<id>` | Single term with all its mappings |
 | `GET /api/stats` | Summary statistics |
 | `GET /api/terms` | Filterable term list (for table view) |
+| `GET /api/geo/samples` | Environmental samples with coordinates (GeoJSON from the geo app) |
 
 Query parameters for `/api/graph`:
 - `category=habitat,species` — filter by category

@@ -5,6 +5,8 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Natura 2000 Ontology Linker</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/cytoscape/3.28.1/cytoscape.min.js"></script>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #1a2332; color: #e0e6f0; height: 100vh; display: flex; flex-direction: column; }
@@ -93,6 +95,34 @@
   .type-close { background: #3a3a00; color: #e8d86a; }
   .type-related { background: #3a1a00; color: #e8a86a; }
 
+  /* View tabs */
+  .view-tabs { display: flex; background: #162030; border-radius: 6px; padding: 3px; gap: 2px; }
+  .view-tab { padding: 5px 14px; border: none; border-radius: 4px; background: transparent; color: #8aa8c4; cursor: pointer; font-size: 0.8rem; font-weight: 500; }
+  .view-tab:hover { color: #c0d4e8; }
+  .view-tab.active { background: #1e6fb5; color: #fff; }
+
+  /* Map view */
+  .map-view { display: none; position: relative; height: 100%; }
+  #map { width: 100%; height: 100%; background: #0b1420; }
+  .map-card { position: absolute; top: 12px; left: 12px; z-index: 500; width: 300px; max-height: calc(100% - 24px); overflow-y: auto;
+              background: rgba(13, 27, 42, 0.94); border: 1px solid #2d4a6e; border-radius: 8px; padding: 12px; font-size: 0.8rem; color: #b0c8e0; }
+  .map-card h3 { font-size: 0.72rem; text-transform: uppercase; letter-spacing: 1px; color: #5a8ab0; margin-bottom: 8px; }
+  .map-card .map-title { font-size: 0.95rem; font-weight: 600; color: #e0ecf8; margin: 10px 0 2px; line-height: 1.35; }
+  .map-card .map-sub { color: #6b8cac; font-size: 0.75rem; margin-bottom: 8px; }
+  .map-card .map-hint { color: #6b8cac; font-size: 0.78rem; line-height: 1.5; margin-top: 8px; }
+  .map-results { margin-top: 6px; display: flex; flex-direction: column; gap: 2px; }
+  .map-result { padding: 5px 7px; border-radius: 4px; cursor: pointer; color: #c0d4e8; display: flex; gap: 6px; align-items: center; }
+  .map-result:hover { background: #1e3050; }
+  .map-layer-row { display: flex; align-items: center; gap: 8px; padding: 4px 0; cursor: pointer; }
+  .map-layer-row input { accent-color: #1e6fb5; }
+  .map-layer-row .count { margin-left: auto; color: #7ecff5; font-weight: 600; font-size: 0.75rem; }
+  .map-legend { display: grid; grid-template-columns: 12px 1fr; gap: 4px 8px; align-items: center; margin-top: 8px; font-size: 0.74rem; color: #8aa8c4; }
+  .map-legend span.sw { width: 12px; height: 12px; border-radius: 2px; }
+  .map-note { font-size: 0.72rem; color: #6b8cac; margin-top: 8px; line-height: 1.5; }
+  .map-section { border-top: 1px solid #1e3050; margin-top: 10px; padding-top: 10px; }
+  .btn-map { margin-top: 10px; width: 100%; }
+  .leaflet-popup-content { font-size: 0.78rem; line-height: 1.45; }
+
   /* Loading / error overlay */
   .overlay { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; background: rgba(17, 28, 43, 0.9); z-index: 100; gap: 12px; }
   .overlay.hidden { display: none; }
@@ -116,7 +146,11 @@
     <div class="subtitle">Interactive visualization of linked biological ontologies</div>
   </div>
   <div class="header-controls">
-    <button class="btn btn-secondary" id="btnToggleView">Switch to Table View</button>
+    <div class="view-tabs" role="tablist">
+      <button class="view-tab active" data-view="graph">Graph</button>
+      <button class="view-tab" data-view="table">Table</button>
+      <button class="view-tab" data-view="map">Map</button>
+    </div>
     <button class="btn btn-primary" id="btnRefresh">Reload Data</button>
   </div>
 </header>
@@ -249,6 +283,23 @@
       </table>
     </div>
 
+    <div class="map-view" id="mapView">
+      <div id="map"></div>
+      <div class="map-card">
+        <h3>Where does it live?</h3>
+        <input type="text" id="mapSearch" placeholder="Find a habitat or species…">
+        <div class="map-results" id="mapResults"></div>
+        <div id="mapSelected">
+          <div class="map-hint">Pick a habitat or species: search here, or click one in the graph or table and press <b>Show on map</b>.</div>
+        </div>
+        <div class="map-section">
+          <h3>Background layers</h3>
+          <label class="map-layer-row"><input type="checkbox" id="lyrSites" checked> Natura 2000 protected sites</label>
+          <label class="map-layer-row"><input type="checkbox" id="lyrSamples"> <span class="color-dot" style="background:#6ae86a"></span> Environmental DNA samples <span class="count" id="samplesCount"></span></label>
+        </div>
+      </div>
+    </div>
+
     <div class="overlay" id="loadingOverlay">
       <div class="spinner"></div>
       <div class="overlay-msg">Loading ontology graph…</div>
@@ -276,7 +327,7 @@ let allMappings = [];
 let statsData = {};
 let sortColumn = 'label';
 let sortAsc = true;
-let viewMode = 'graph'; // 'graph' | 'table'
+let viewMode = 'graph'; // 'graph' | 'table' | 'map'
 let searchDebounce = null;
 
 // ─── Bootstrap ───────────────────────────────────────────────────────────────
@@ -533,7 +584,8 @@ async function showNodeDetail(data) {
       ${t.definition ? `<div class="detail-field"><label>Definition</label><p>${escHtml(t.definition)}</p></div>` : ''}
       ${t.directive ? `<div class="detail-field"><label>Directive / Annex</label><p>${escHtml(t.directive)} — Annex ${escHtml(t.annex || '?')}</p></div>` : ''}
       ${t.source_url ? `<div class="detail-field"><label>Source</label><p><a href="${escHtml(t.source_url)}" target="_blank" rel="noopener">${escHtml(t.source_url)}</a></p></div>` : ''}
-      <div class="detail-field">
+      ${['habitat', 'species'].includes(t.category) ? `<button class="btn btn-primary btn-map" onclick="showTermOnMap('${escAttr(t.id)}')">Show on map</button>` : ''}
+      <div class="detail-field" style="margin-top:12px">
         <label>Linked Terms (${mappings.length})</label>
         <div class="mappings-list">${mappingsHtml}</div>
       </div>`;
@@ -619,8 +671,18 @@ function setupEventListeners() {
     applyFilters();
   });
 
-  document.getElementById('btnToggleView').addEventListener('click', toggleView);
+  document.querySelectorAll('.view-tab').forEach(tab => {
+    tab.addEventListener('click', () => setView(tab.dataset.view));
+  });
   document.getElementById('btnRefresh').addEventListener('click', initGraph);
+
+  let mapSearchDebounce = null;
+  document.getElementById('mapSearch').addEventListener('input', () => {
+    clearTimeout(mapSearchDebounce);
+    mapSearchDebounce = setTimeout(searchMapTerms, 250);
+  });
+  document.getElementById('lyrSites').addEventListener('change', e => toggleMapLayer('sites', e.target.checked));
+  document.getElementById('lyrSamples').addEventListener('change', e => toggleSamples(e.target.checked));
 
   document.querySelectorAll('.data-table th[data-sort]').forEach(th => {
     th.addEventListener('click', () => {
@@ -646,23 +708,202 @@ async function applyFilters() {
   }
 }
 
-async function toggleView() {
-  const btn = document.getElementById('btnToggleView');
-  const graphEl = document.getElementById('cy');
-  const tableEl = document.getElementById('tableView');
-  if (viewMode === 'graph') {
-    viewMode = 'table';
-    graphEl.style.display = 'none';
-    tableEl.style.display = 'block';
-    btn.textContent = 'Switch to Graph View';
-    await loadTableData();
-  } else {
-    viewMode = 'graph';
-    graphEl.style.display = 'block';
-    tableEl.style.display = 'none';
-    btn.textContent = 'Switch to Table View';
-    if (cy) cy.resize();
+async function setView(mode) {
+  viewMode = mode;
+  document.querySelectorAll('.view-tab').forEach(t => t.classList.toggle('active', t.dataset.view === mode));
+  document.getElementById('cy').style.display = mode === 'graph' ? 'block' : 'none';
+  document.getElementById('tableView').style.display = mode === 'table' ? 'block' : 'none';
+  document.getElementById('mapView').style.display = mode === 'map' ? 'block' : 'none';
+  if (mode === 'graph' && cy) cy.resize();
+  if (mode === 'table') await loadTableData();
+  if (mode === 'map') {
+    initMap();
+    map.invalidateSize();
   }
+}
+
+// ─── Map view ─────────────────────────────────────────────────────────────────
+// Habitat and species ranges come from the EU Article 17 report (2019–2024, EEA);
+// species observations from GBIF; protected sites from the Natura 2000 map (EEA).
+const EEA = 'https://bio.discomap.eea.europa.eu/arcgis/rest/services';
+const ART17 = EEA + '/Article17/ART17_2019_2024_public/MapServer';
+const ART17_HABITATS = 5, ART17_SPECIES = 6;
+const STATUS_LEGEND = [
+  ['#289588', 'Good'], ['#faea9b', 'Poor'], ['#c25327', 'Bad'],
+  ['#bbbdbf', 'Unknown'], ['#747678', 'Not reported'],
+];
+
+let map = null;
+const mapLayers = {};      // sites, samples, range, gbif
+let samplesLoaded = false;
+
+// Tiles cut from an ArcGIS "export" endpoint, so the server can filter by habitat or species.
+const ArcGisExportLayer = L.TileLayer.extend({
+  getTileUrl(coords) {
+    const size = this.getTileSize();
+    const crs = L.CRS.EPSG3857;
+    const nw = crs.project(this._map.unproject([coords.x * size.x, coords.y * size.y], coords.z));
+    const se = crs.project(this._map.unproject([(coords.x + 1) * size.x, (coords.y + 1) * size.y], coords.z));
+    const p = new URLSearchParams({
+      bbox: [nw.x, se.y, se.x, nw.y].join(','), bboxSR: 3857, imageSR: 3857,
+      size: `${size.x},${size.y}`, format: 'png32', transparent: true, f: 'image',
+      ...this.options.params,
+    });
+    return `${this._url}?${p}`;
+  },
+});
+
+function initMap() {
+  if (map) return;
+  map = L.map('map', { worldCopyJump: true, zoomControl: false }).setView([54, 15], 4);
+  L.control.zoom({ position: 'topright' }).addTo(map);
+  L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Base/MapServer/tile/{z}/{y}/{x}', {
+    attribution: 'Base map &copy; Esri', maxZoom: 16,
+  }).addTo(map);
+  mapLayers.sites = L.tileLayer(EEA + '/ProtectedSites/Natura2000SitesCache/MapServer/tile/{z}/{y}/{x}', {
+    opacity: 0.45, attribution: 'Natura 2000 sites &copy; EEA', maxZoom: 19,
+  }).addTo(map);
+}
+
+function toggleMapLayer(name, on) {
+  const layer = mapLayers[name];
+  if (!map || !layer) return;
+  if (on) layer.addTo(map); else map.removeLayer(layer);
+}
+
+async function toggleSamples(on) {
+  initMap();
+  if (on && !samplesLoaded) {
+    samplesLoaded = true;
+    const r = await fetch('/api/geo/samples');
+    const fc = await r.json();
+    mapLayers.samples = L.geoJSON(fc, {
+      pointToLayer: (f, latlng) => L.circleMarker(latlng, {
+        radius: 4, color: '#0d1b2a', weight: 1, fillColor: '#6ae86a', fillOpacity: 0.85,
+      }),
+      onEachFeature: (f, layer) => {
+        const p = f.properties || {};
+        layer.bindPopup(`<b>${escHtml(p.title || p.accession)}</b><br>
+          ${escHtml(p.organism || '')}<br>${escHtml([p.region, p.country].filter(Boolean).join(', '))}
+          ${p.collection_date ? '· ' + escHtml(p.collection_date) : ''}<br>
+          <a href="https://www.ebi.ac.uk/biosamples/samples/${encodeURIComponent(p.accession)}" target="_blank" rel="noopener">${escHtml(p.accession)}</a>`);
+      },
+    });
+    setText('samplesCount', fc.features.length || 'none');
+  }
+  toggleMapLayer('samples', on);
+}
+
+async function searchMapTerms() {
+  const q = document.getElementById('mapSearch').value.trim();
+  const box = document.getElementById('mapResults');
+  if (q.length < 2) { box.innerHTML = ''; return; }
+  const r = await fetch('/api/terms?' + new URLSearchParams({ category: 'habitat,species', search: q }));
+  const terms = (await r.json()).slice(0, 8);
+  box.innerHTML = terms.length ? terms.map(t => `
+    <div class="map-result" onclick="showTermOnMap('${escAttr(t.id)}')">
+      <span class="color-dot" style="background:${t.category === 'habitat' ? '#2E86AB' : '#A23B72'}"></span>
+      ${escHtml(t.label)}
+    </div>`).join('') : '<div class="map-hint">Nothing found.</div>';
+}
+
+async function showTermOnMap(termId) {
+  if (viewMode !== 'map') await setView('map');
+  document.getElementById('mapResults').innerHTML = '';
+  document.getElementById('mapSearch').value = '';
+
+  const r = await fetch(`/api/term/${encodeURIComponent(termId)}`);
+  const { term: t, mappings = [] } = await r.json();
+  if (!t) return;
+
+  for (const name of ['range', 'gbif']) {
+    if (mapLayers[name]) { map.removeLayer(mapLayers[name]); delete mapLayers[name]; }
+  }
+  // the protected-sites layer would hide the range; it can be switched back on
+  document.getElementById('lyrSites').checked = false;
+  toggleMapLayer('sites', false);
+
+  // EU range from the Article 17 report, filtered on the server by habitat code or species name
+  let rangeLayer = ART17_HABITATS, where;
+  if (t.category === 'habitat' && t.codes?.length) {
+    where = `habitats_distribution3857_diss_multi.habitat_code='${sqlStr(t.codes[0])}'`;
+  } else if (t.category === 'species' && t.scientific_name) {
+    rangeLayer = ART17_SPECIES;
+    const name = sqlStr(t.scientific_name);
+    where = `reference_specieslist.species_name='${name}' OR reference_specieslist.HD_name='${name}'`;
+  }
+  if (where) {
+    mapLayers.range = new ArcGisExportLayer(`${ART17}/export`, {
+      opacity: 0.8, attribution: 'Article 17 report 2019–2024 &copy; EEA',
+      params: { layers: `show:${rangeLayer}`, layerDefs: JSON.stringify({ [rangeLayer]: where }) },
+    }).addTo(map);
+  }
+
+  // Observations from GBIF, using the GBIF link the pipeline found
+  const gbifKey = mappings.map(m => (m.target_uri || '').match(/gbif\.org\/species\/(\d+)/)).find(Boolean)?.[1];
+  if (gbifKey) {
+    mapLayers.gbif = L.tileLayer(
+      `https://api.gbif.org/v2/map/occurrence/density/{z}/{x}/{y}@1x.png?taxonKey=${gbifKey}&style=glacier.point`,
+      { tileSize: 512, zoomOffset: -1, attribution: 'Observations &copy; GBIF', maxZoom: 19 },
+    ).addTo(map);
+  }
+
+  renderMapCard(t, { hasRange: !!where, gbifKey });
+  map.setView([54, 15], 4);
+
+  const [rangeCount, gbifCount] = await Promise.all([
+    where ? countArt17(rangeLayer, where) : null,
+    gbifKey ? countGbif(gbifKey) : null,
+  ]);
+  renderMapCard(t, { hasRange: !!where, gbifKey, rangeCount, gbifCount });
+}
+
+function renderMapCard(t, { hasRange, gbifKey, rangeCount, gbifCount }) {
+  const isSpecies = t.category === 'species';
+  const sub = isSpecies
+    ? `<em>${escHtml(t.scientific_name || '')}</em> · species`
+    : `Habitat type ${escHtml((t.codes || []).join(', '))}`;
+  const fmt = n => n == null ? '…' : n.toLocaleString();
+  let note = '';
+  if (rangeCount === 0) {
+    note = t.directive === 'birds'
+      ? 'Birds are reported under the Birds Directive, so they have no Article 17 range map. GBIF observations are shown instead.'
+      : 'No range for this one in the 2019–2024 Article 17 report.';
+  }
+  document.getElementById('mapSelected').innerHTML = `
+    <div class="map-title">${escHtml(t.label)}</div>
+    <div class="map-sub">${sub}</div>
+    ${hasRange && rangeCount !== 0 ? `
+      <label class="map-layer-row"><input type="checkbox" checked onchange="toggleMapLayer('range', this.checked)">
+        EU range and condition <span class="count">${rangeCount == null ? '…' : rangeCount + ' areas'}</span></label>` : ''}
+    ${gbifKey ? `
+      <label class="map-layer-row"><input type="checkbox" checked onchange="toggleMapLayer('gbif', this.checked)">
+        <span class="color-dot" style="background:#d6f1ff"></span> GBIF observations <span class="count">${fmt(gbifCount)}</span></label>` : ''}
+    ${hasRange && rangeCount !== 0 ? `<div class="map-legend">
+      ${STATUS_LEGEND.map(([c, l]) => `<span class="sw" style="background:${c}"></span><span>${l}</span>`).join('')}
+    </div>
+    <div class="map-note">Range and conservation status as reported by EU countries (Article 17, 2019–2024).</div>` : ''}
+    ${note ? `<div class="map-note">${note}</div>` : ''}
+    ${gbifKey ? `<div class="map-note">GBIF count is for Europe. <a style="color:#5ab0e8" href="https://www.gbif.org/occurrence/search?taxon_key=${gbifKey}" target="_blank" rel="noopener">Open in GBIF</a></div>` : ''}`;
+}
+
+async function countArt17(layer, where) {
+  try {
+    const p = new URLSearchParams({ where, returnCountOnly: true, f: 'json' });
+    const r = await fetch(`${ART17}/${layer}/query?${p}`);
+    return (await r.json()).count ?? null;
+  } catch { return null; }
+}
+
+async function countGbif(key) {
+  try {
+    const r = await fetch(`https://api.gbif.org/v1/occurrence/search?taxonKey=${key}&continent=EUROPE&limit=0`);
+    return (await r.json()).count ?? null;
+  } catch { return null; }
+}
+
+function sqlStr(s) {
+  return String(s).replace(/'/g, "''");
 }
 
 // ─── UI helpers ───────────────────────────────────────────────────────────────
