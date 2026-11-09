@@ -40,6 +40,21 @@ def store() -> ReviewStore:
     return _store
 
 
+def write_snapshot() -> Path | None:
+    """mfd-match-reviews.csv next to the review log, rewritten after every decision, so
+    there is always a spreadsheet of the current state beside the full history."""
+    out = REVIEWS_FILE.with_name("mfd-match-reviews.csv")
+    try:
+        out.parent.mkdir(parents=True, exist_ok=True)
+        tmp = out.with_name(out.name + ".tmp")
+        tmp.write_text(export_csv(_predicted(), store().state()), encoding="utf-8")
+        tmp.replace(out)
+        return out
+    except OSError:
+        logger.exception("Could not write %s", out)
+        return None
+
+
 def _predicted() -> dict:
     try:
         return predicted_matches(json.loads((DATA_DIR / "mfd" / "graph.json").read_text()))
@@ -75,6 +90,7 @@ def post_review():
     except ReviewError as exc:
         return jsonify({"error": str(exc)}), 400
     logger.info("Review: %s marked %s as %s", event["reviewer"], event["key"], event["verdict"])
+    write_snapshot()
     return jsonify({"event": event, "state": store().state().get(event["key"])})
 
 
@@ -98,6 +114,7 @@ def prepare(strict: bool = True) -> None:
     try:
         build.build(DATA_DIR)
         build.write_graph(DATA_DIR, LINKER_DIR)
+        write_snapshot()
     except Exception:
         if strict:
             raise
@@ -108,7 +125,7 @@ def main():
     logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(name)s: %(message)s")
     prepare()
     port = int(os.environ.get("MFD_PORT", 8095))
-    logger.info("MFD viewer on port %d, data dir %s, reviews in %s", port, DATA_DIR, REVIEWS_FILE)
+    logger.info("MFD viewer on port %d, data dir %s, reviews in %s", port, DATA_DIR, REVIEWS_FILE.parent)
     app.run(host="0.0.0.0", port=port, threaded=True)
 
 

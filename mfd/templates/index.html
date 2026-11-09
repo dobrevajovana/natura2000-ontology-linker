@@ -681,6 +681,8 @@ function drawOverview() {
     <h3>Validation of predicted matches</h3>
     <div class="tile" style="max-width:520px"><div id="ovValidation"></div>
       <div class="s" style="margin-top:6px">The Natura 2000 linker's matches from the habitats this ontology uses to Wikidata, EUNIS, ENVO and other ontologies. Review them from the detail panel, or with "Next to review" on the left.</div></div>
+    <h3 id="reviewedHead">Reviewed matches</h3>
+    <div id="ovReviewed"></div>
 
     <h3>Crosswalk coverage (MFDO1–MFDO3)</h3>
     <div class="tiles">${tiles}</div>
@@ -739,6 +741,7 @@ document.addEventListener('visibilitychange', () => { if (!document.hidden) load
 
 function reviewsChanged() {
   drawProgress();
+  drawReviewedList();
   if (cy) cy.edges('[kind="linker"]').forEach((ed) => ed.data('rv', reviewStatus(ed.data())));
   if ($('reviewFilter').value) drawGraph();
   if (lastDetail && !$('detailPanel').hidden && !document.activeElement?.closest('.review')) lastDetail();
@@ -822,7 +825,10 @@ $('nextReview').addEventListener('click', () => {
   const open = predictedEdges().filter((e) => reviewStatus(e) === 'unreviewed')
     .sort((a, b) => (b.review ? 1 : 0) - (a.review ? 1 : 0) || (a.confidence ?? 1) - (b.confidence ?? 1) || a.source.localeCompare(b.source));
   if (!open.length) { $('valLegend').insertAdjacentHTML('beforeend', '<span></span><span class="muted">Everything has been reviewed.</span><span></span>'); return; }
-  const e = open[0];
+  openMatch(open[0]);
+});
+
+function openMatch(e) {
   focusKey = keyOf(e);
   if (pane === 'overview' || pane === 'map') setPane('split');
   if ($('reviewFilter').value && !reviewShown(e)) $('reviewFilter').value = '';
@@ -833,6 +839,32 @@ $('nextReview').addEventListener('click', () => {
     focusGraphNode(e.source, true);
     document.querySelector(`.mapping-card[data-key="${CSS.escape(focusKey)}"]`)?.scrollIntoView({ block: 'center' });
   });
+}
+
+// Every reviewed match, newest first; a row opens it.
+function drawReviewedList() {
+  const el = $('ovReviewed');
+  if (!el) return;
+  const byKey = Object.fromEntries(predictedEdges().map((e) => [keyOf(e), e]));
+  const rows = Object.entries(reviews).filter(([k]) => byKey[k]).sort((a, b) => b[1].time.localeCompare(a[1].time));
+  $('reviewedHead').textContent = `Reviewed matches (${rows.length})`;
+  if (!rows.length) { el.innerHTML = '<div class="note">None yet. Reviewed matches are listed here, newest first.</div>'; return; }
+  el.innerHTML = `<table><thead><tr><th>Natura 2000 habitat</th><th>Matched term</th><th>Decision</th><th>Reviewer</th><th>When (UTC)</th><th>Comment</th></tr></thead><tbody>${rows.map(([k, r]) => {
+    const e = byKey[k], t = gById[e.target], st = reviewStatus(e);
+    return `<tr data-open="${escHtml(k)}" style="cursor:pointer" title="Open this match">
+      <td>${escHtml(gById[e.source]?.label || e.source)}</td>
+      <td>${escHtml(t?.label || e.target)} <span class="muted">${escHtml(sourceOf(t?.kind || '').label)}</span></td>
+      <td><span class="rv-pill st-${st}">${escHtml(Object.fromEntries(STATUSES)[st])}</span>${r.match_type ? ` <span class="muted">as ${escHtml(shortMatch(r.match_type))}</span>` : ''}</td>
+      <td>${escHtml(Object.keys(r.reviewers).join(', '))}</td>
+      <td style="white-space:nowrap">${escHtml(r.time.slice(0, 16).replace('T', ' '))}</td>
+      <td>${escHtml(r.comment || '')}</td></tr>`;
+  }).join('')}</tbody></table>
+  <div class="note">Click a row to open the match. Download everything with <a href="api/reviews/export.csv">CSV</a> or <a href="api/reviews/export.sssom.tsv">SSSOM</a>.</div>`;
+}
+$('overview').addEventListener('click', (ev) => {
+  const row = ev.target.closest('tr[data-open]');
+  const e = row && predictedEdges().find((x) => keyOf(x) === row.dataset.open);
+  if (e) openMatch(e);
 });
 $('reviewFilter').addEventListener('change', drawGraph);
 

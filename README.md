@@ -326,7 +326,12 @@ The viewer is also where domain experts validate the **predicted** matches: the 
 - **Next to review** opens the next open match: the ones the linker flagged for review first, then the least confident.
 - The graph colours reviewed matches (green correct, red dashed incorrect, amber unsure, orange where reviewers disagree), and **Show predicted matches** filters by review state. Progress is on the left and on the Overview tab.
 
-**Storage.** Decisions are appended to `reviews.jsonl` in the viewer's data folder (`mfd/reviews.jsonl` in the `mfd_data` Docker volume, the same file whether the viewer runs at `:8080/mfd/` or on `:8095`; set `MFD_REVIEWS_FILE` to put it elsewhere). Nothing is overwritten: each line is one decision with reviewer, time, verdict, match type, comment and what was predicted, so the full history is kept. A match's state is each reviewer's latest decision; if they differ it is marked as disputed. Rebuilding the image or restarting keeps the file; removing the volume deletes it, so export regularly:
+**Storage.** Reviews are plain files on the computer running the viewer, in `~/natura2000-reviews/` (set `MFD_REVIEWS_DIR` in `.env` to use another folder; Docker Desktop cannot write into OneDrive folders, so keep it outside OneDrive):
+
+- `reviews.jsonl`: the full history. Each line is one decision with reviewer, time, verdict, match type, comment and what was predicted; lines are only ever added, never changed.
+- `mfd-match-reviews.csv`: the current state of every predicted match, rewritten after each decision; opens in Excel.
+
+A match's state is each reviewer's latest decision; if they differ it is marked as disputed. The Overview tab lists every reviewed match, newest first. Back the folder up like any other files. The same files can be downloaded from the viewer:
 
 - `GET /api/reviews/export.csv`: every predicted match with its review state (for a spreadsheet).
 - `GET /api/reviews/export.sssom.tsv`: reviewed matches as SSSOM, `mapping_justification` `semapv:ManualMappingCuration`, reviewers in `author_label`, incorrect matches with `predicate_modifier` `Not`; unsure ones are left out.

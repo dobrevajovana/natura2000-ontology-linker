@@ -23,8 +23,13 @@ services:
     volumes:
       - mfd_data:/data
       - natura2000_data:/linker:ro
+      # Experts' reviews as plain files on this computer (reviews.jsonl, the full
+      # history, and mfd-match-reviews.csv, the current state). Not in OneDrive:
+      # Docker Desktop cannot write there. Change the folder with MFD_REVIEWS_DIR.
+      - ${MFD_REVIEWS_DIR:-${HOME}/natura2000-reviews}:/reviews
     environment:
       - LINKER_DIR=/linker
+      - MFD_REVIEWS_FILE=/reviews/reviews.jsonl
     ports:
       - "${MFD_PORT:-8095}:8095"
 

@@ -230,6 +230,8 @@ def test_review_api(tmp_path, monkeypatch):
 
     ok = client.post("/api/reviews", json={"key": KEY_WIKI, "verdict": "correct", "reviewer": "Ana"})
     assert ok.status_code == 200 and ok.get_json()["state"]["verdict"] == "correct"
+    snapshot = (tmp_path / "mfd" / "mfd-match-reviews.csv").read_text()  # spreadsheet beside the log, kept current
+    assert "correct" in snapshot and "Ana" in snapshot
     assert client.get("/api/reviews").get_json()["state"][KEY_WIKI]["reviewer"] == "Ana"
 
     csv_resp = client.get("/api/reviews/export.csv")

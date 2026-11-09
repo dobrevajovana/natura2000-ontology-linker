@@ -22,6 +22,10 @@ services:
       # The MFD viewer at /mfd/: its data and the experts' reviews (mfd/reviews.jsonl).
       # Same layout as docker-compose.mfd.yml, so either can run on the same volume.
       - mfd_data:/mfd_data
+      # Experts' reviews as plain files on this computer (reviews.jsonl, the full
+      # history, and mfd-match-reviews.csv, the current state). Not in OneDrive:
+      # Docker Desktop cannot write there. Change the folder with MFD_REVIEWS_DIR.
+      - ${MFD_REVIEWS_DIR:-${HOME}/natura2000-reviews}:/reviews
     env_file:
       - path: .env          # optional: copy .env.example to .env to change settings
         required: false
@@ -30,6 +34,7 @@ services:
     environment:
       - DATA_DIR=/data
       - MFD_DATA_DIR=/mfd_data
+      - MFD_REVIEWS_FILE=/reviews/reviews.jsonl
     profiles:
       - viz
 
