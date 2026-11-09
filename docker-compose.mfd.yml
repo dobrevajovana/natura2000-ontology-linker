@@ -1,0 +1,30 @@
+# Microflora Danica (MFD) habitat ontology viewer.
+# Kept separate from docker-compose.yml, like the geo app.
+#
+#   docker compose -f docker-compose.mfd.yml up -d --build
+#   -> http://localhost:8095
+#
+# The knowledge graph reads the Natura 2000 linker's output (terms.json,
+# mappings.json) from the pipeline's volume, read-only, and is rebuilt on every
+# start. Without a pipeline run the graph holds the MFD crosswalk only.
+#
+# Rebuild the MFD data from the pinned release:
+#   docker compose -f docker-compose.mfd.yml run --rm mfd python -m mfd.build
+
+services:
+  mfd:
+    build:
+      context: .
+      dockerfile: Dockerfile.mfd
+    volumes:
+      - mfd_data:/data
+      - natura2000_data:/linker:ro
+    environment:
+      - LINKER_DIR=/linker
+    ports:
+      - "${MFD_PORT:-8095}:8095"
+
+volumes:
+  mfd_data:
+  # Same project and key as docker-compose.yml, so this is the pipeline's volume.
+  natura2000_data:

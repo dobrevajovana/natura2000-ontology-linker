@@ -1,0 +1,1036 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MFD Habitat Ontology</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/cytoscape/3.28.1/cytoscape.min.js"></script>
+<style>
+  /* Same look as the Natura 2000 viewer (viz/): light and dark from the system setting. */
+  :root {
+    --bg: #f5f6f8; --panel-bg: #ffffff; --border: #d9dce1; --text: #1b1e23; --text-muted: #5b6270;
+    --accent: #1565c0; --accent-contrast: #ffffff; --danger: #c62828; --ok: #2e7d32;
+    --input-bg: #ffffff; --shadow: 0 1px 3px rgba(0, 0, 0, 0.12); --card-bg: rgba(255, 255, 255, 0.95);
+    --chip-bg: #eef1f5;
+    /* The three crosswalks of the MFD ontology; checked with the dataviz palette validator. */
+    --x-n2k: #2a78d6; --x-eunis: #eda100; --x-empo: #6250d6;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #14161a; --panel-bg: #1c1f24; --border: #33383f; --text: #e7e9ec; --text-muted: #9aa1ab;
+      --accent: #5c9cea; --accent-contrast: #0d1117; --danger: #ef5350; --ok: #66bb6a;
+      --input-bg: #22262c; --shadow: 0 1px 3px rgba(0, 0, 0, 0.5); --card-bg: rgba(28, 31, 36, 0.95);
+      --chip-bg: #262a31;
+      --x-n2k: #3987e5; --x-eunis: #c98500; --x-empo: #9085e9;
+    }
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; height: 100%; background: var(--bg); color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; font-size: 14px; }
+  button, input, select { font: inherit; color: inherit; }
+  [hidden] { display: none !important; }
+
+  .topbar { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 16px;
+    background: var(--panel-bg); border-bottom: 1px solid var(--border); }
+  .topbar h1 { font-size: 16px; margin: 0; }
+  .topbar-actions { display: flex; align-items: center; gap: 12px; font-size: 12px; }
+  .topbar a { color: var(--accent); }
+  .load-status { color: var(--text-muted); }
+
+  .layout { display: flex; height: calc(100vh - 42px); min-height: 500px; }
+  .panel-controls { width: 380px; min-width: 280px; max-width: 420px; display: flex; flex-direction: column; background: var(--panel-bg);
+    border-right: 1px solid var(--border); flex-shrink: 0; min-height: 0; }
+  .panel-scroll { overflow-y: auto; padding: 12px; flex: 1; min-height: 0; }
+  .control-group { margin-bottom: 14px; padding-bottom: 14px; border-bottom: 1px solid var(--border); }
+  .control-group:last-child { border-bottom: none; }
+  .control-group > label, .control-group h3 { display: block; font-weight: 600; margin: 0 0 6px 0; font-size: 12.5px;
+    color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.02em; }
+  input[type="search"] { width: 100%; padding: 6px 8px; border: 1px solid var(--border); border-radius: 6px; background: var(--input-bg); color: var(--text); }
+  input[type="range"] { width: 100%; }
+  .check-list { display: flex; flex-direction: column; gap: 4px; }
+  .check-list label { display: flex; align-items: center; gap: 6px; font-size: 13px; cursor: pointer; }
+  .check-swatch { display: inline-block; width: 10px; height: 10px; border-radius: 2px; flex-shrink: 0; }
+  .muted { color: var(--text-muted); font-size: 12px; }
+  .btn { padding: 6px 12px; border: 1px solid var(--border); border-radius: 6px; background: var(--panel-bg); cursor: pointer; }
+  .btn:hover { border-color: var(--accent); }
+  .btn-ghost { background: transparent; border-color: transparent; }
+  .stats-list { display: grid; gap: 4px; margin: 0; }
+  .stats-list > div { display: flex; justify-content: space-between; font-size: 13px; }
+  .stats-list dt { color: var(--text-muted); }
+  .stats-list dd { margin: 0; font-weight: 600; font-variant-numeric: tabular-nums; }
+  .legend-block { display: flex; flex-direction: column; gap: 4px; font-size: 12.5px; }
+  .legend-row { display: flex; align-items: center; gap: 6px; }
+  .legend-node { width: 12px; height: 12px; border-radius: 50%; flex-shrink: 0; }
+  .legend-edge { width: 22px; height: 0; border-top: 2px solid var(--text-muted); flex-shrink: 0; }
+
+  /* Hierarchy tree */
+  .tree { margin: 0 -12px; }
+  .tree-row { display: flex; align-items: center; gap: 4px; padding: 3px 12px 3px 0; cursor: pointer; font-size: 13px; line-height: 1.35; }
+  .tree-row:hover { background: var(--chip-bg); }
+  .tree-row.sel { background: var(--accent); color: var(--accent-contrast); }
+  .tree-row.sel .code-chip { background: transparent; border-color: currentColor; color: inherit; }
+  .tree-row .tw { width: 18px; flex: none; text-align: center; color: var(--text-muted); font-size: 9px; }
+  .tree-row.sel .tw { color: inherit; }
+  .tree-row .lbl { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .tree-row mark { background: none; color: var(--accent); font-weight: 600; }
+  .tree-row.sel mark { color: inherit; }
+  .code-chip { font-size: 11px; padding: 0 6px; border-radius: 8px; background: var(--chip-bg); border: 1px solid transparent;
+    color: var(--text-muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .xw { display: inline-flex; align-items: center; gap: 4px; }
+  .xw::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: var(--c); flex: none; }
+  .tree-row .chips { display: flex; gap: 3px; flex: none; }
+  select { width: 100%; padding: 6px 8px; border: 1px solid var(--border); border-radius: 6px; background: var(--input-bg); color: var(--text); margin-top: 6px; }
+  .check-head { font-size: 11.5px; color: var(--text-muted); margin: 6px 0 2px; }
+  .check-head:first-child { margin-top: 0; }
+
+  /* Overview */
+  .pane.pane-overview { flex: 1 1 100%; overflow: auto; display: none; padding: 20px 24px 32px; }
+  .split-container.mode-overview .pane-overview { display: block; }
+  .split-container.mode-overview .pane-map, .split-container.mode-overview .pane-graph, .split-container.mode-overview .splitter { display: none; }
+  .ov { max-width: 980px; }
+  .ov h2 { font-size: 18px; margin: 0 0 6px; }
+  .ov h3 { font-size: 12.5px; text-transform: uppercase; letter-spacing: 0.02em; color: var(--text-muted); margin: 26px 0 8px; }
+  .ov p { margin: 0 0 8px; line-height: 1.55; max-width: 72ch; }
+  .ov .path { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin: 12px 0 4px; font-size: 13px; }
+  .ov .path span.lv { padding: 3px 9px; border: 1px solid var(--border); border-radius: 6px; background: var(--panel-bg); }
+  .ov .path span.lv b { font-variant-numeric: tabular-nums; }
+  .tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; }
+  .tile { background: var(--panel-bg); border: 1px solid var(--border); border-radius: 8px; padding: 10px 12px; }
+  .tile .k { font-size: 12px; color: var(--text-muted); display: flex; align-items: center; gap: 6px; }
+  .tile .v { font-size: 22px; font-weight: 600; font-variant-numeric: tabular-nums; margin-top: 2px; }
+  .tile .s { font-size: 12px; color: var(--text-muted); margin-top: 2px; line-height: 1.4; }
+  .ov table { border-collapse: collapse; width: 100%; font-size: 13px; background: var(--panel-bg); border: 1px solid var(--border); border-radius: 8px; overflow: hidden; }
+  .ov th { text-align: left; font-size: 12px; color: var(--text-muted); font-weight: 600; padding: 7px 10px; border-bottom: 1px solid var(--border); white-space: nowrap; }
+  .ov td { padding: 6px 10px; border-bottom: 1px solid var(--border); vertical-align: middle; }
+  .ov tr:last-child td { border-bottom: none; }
+  .ov td.num, .ov th.num { text-align: right; font-variant-numeric: tabular-nums; }
+  .cov { display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 8px; min-width: 120px; }
+  .cov .bar { height: 6px; border-radius: 3px; background: var(--chip-bg); overflow: hidden; }
+  .cov .bar > span { display: block; height: 100%; background: var(--c); border-radius: 3px; }
+  .cov .t { font-variant-numeric: tabular-nums; font-size: 12px; min-width: 64px; text-align: right; }
+  .ov td.cell { text-align: center; font-variant-numeric: tabular-nums; }
+  .ov td.cell button { border: 1px solid var(--border); background: var(--chip-bg); border-radius: 6px; padding: 2px 10px; cursor: pointer; font-variant-numeric: tabular-nums; }
+  .ov td.cell button:hover { border-color: var(--accent); color: var(--accent); }
+  .ov .note { color: var(--text-muted); font-size: 12px; margin-top: 6px; }
+  .kids { display: none; }
+  .open > .kids { display: block; }
+
+  /* Main area */
+  .panel-main { flex: 1; display: flex; flex-direction: column; min-width: 0; }
+  .pane-toggle { display: flex; gap: 6px; padding: 6px 10px; background: var(--panel-bg); border-bottom: 1px solid var(--border); align-items: center; }
+  .pane-toggle-btn { padding: 4px 10px; border: 1px solid var(--border); border-radius: 6px; background: var(--panel-bg); cursor: pointer; font-size: 12.5px; }
+  .pane-toggle-btn.active { background: var(--accent); color: var(--accent-contrast); border-color: var(--accent); }
+  .pane-toggle .graph-info { margin-left: auto; font-size: 12px; color: var(--text-muted); }
+  .split-container { flex: 1; display: flex; flex-direction: column; min-height: 0; }
+  .pane { position: relative; min-height: 60px; overflow: hidden; }
+  .pane-map { flex: 1 1 50%; }
+  .pane-graph { flex: 1 1 50%; border-top: 1px solid var(--border); }
+  .split-container.mode-map .pane-map { flex: 1 1 100%; }
+  .split-container.mode-map .pane-graph, .split-container.mode-map .splitter { display: none; }
+  .split-container.mode-graph .pane-graph { flex: 1 1 100%; border-top: none; }
+  .split-container.mode-graph .pane-map, .split-container.mode-graph .splitter { display: none; }
+  .splitter { height: 6px; background: var(--border); cursor: row-resize; flex-shrink: 0; }
+  .splitter:hover, .splitter.dragging { background: var(--accent); }
+  #map, #cy { width: 100%; height: 100%; background: var(--bg); }
+  .graph-hint { position: absolute; left: 10px; bottom: 10px; z-index: 600; max-width: 360px; padding: 6px 10px; border-radius: 6px;
+    font-size: 12px; line-height: 1.45; color: var(--text-muted); background: var(--card-bg); border: 1px solid var(--border); pointer-events: none; }
+
+  /* Map card */
+  .map-card { position: absolute; top: 10px; left: 10px; z-index: 600; width: 290px; max-height: calc(100% - 20px); overflow-y: auto;
+    background: var(--card-bg); border: 1px solid var(--border); border-radius: 8px; padding: 10px 12px; font-size: 13px; box-shadow: var(--shadow); }
+  .map-card h3 { font-size: 12px; text-transform: uppercase; letter-spacing: 0.02em; color: var(--text-muted); margin: 0 0 6px; }
+  .map-card .map-title { font-size: 14px; font-weight: 600; margin: 4px 0 2px; line-height: 1.35; }
+  .map-card .map-sub { color: var(--text-muted); font-size: 12px; margin-bottom: 6px; }
+  .map-hint, .map-note { color: var(--text-muted); font-size: 12px; line-height: 1.5; margin-top: 6px; }
+  .map-layer-row { display: flex; align-items: center; gap: 8px; padding: 3px 0; cursor: pointer; }
+  .map-layer-row .count { margin-left: auto; font-weight: 600; font-size: 12px; font-variant-numeric: tabular-nums; }
+  .map-legend { display: grid; grid-template-columns: 12px 1fr; gap: 4px 8px; align-items: center; margin-top: 8px; font-size: 12px; color: var(--text-muted); }
+  .map-legend span.sw { width: 12px; height: 12px; border-radius: 2px; }
+  .map-section { border-top: 1px solid var(--border); margin-top: 10px; padding-top: 10px; }
+  .status-list { display: grid; grid-template-columns: auto 1fr auto; gap: 3px 8px; align-items: center; margin-top: 8px; font-size: 12px; }
+  .status-list .sw { width: 10px; height: 10px; border-radius: 2px; }
+  .status-list .num { color: var(--text-muted); font-variant-numeric: tabular-nums; text-align: right; }
+  .map-card a, .detail-content a { color: var(--accent); }
+
+  /* Badges */
+  .badge { display: inline-block; padding: 1px 7px; border-radius: 10px; font-size: 11px; color: #fff; }
+  .type-badge { font-size: 11px; padding: 1px 7px; border-radius: 10px; border: 1px solid currentColor; }
+  .type-exact { color: var(--ok); } .type-close { color: #b08800; } .type-broad, .type-narrow { color: var(--accent); }
+  .type-related { color: #c4561a; } .type-crosswalk { color: var(--text-muted); }
+  @media (prefers-color-scheme: dark) { .type-close { color: #e0c341; } .type-related { color: #f0975a; } }
+  .conf-badge { font-size: 11px; padding: 1px 6px; border-radius: 8px; background: var(--chip-bg); font-variant-numeric: tabular-nums; }
+
+  /* Detail slide-over, as in the Natura 2000 viewer */
+  .detail-panel { position: fixed; top: 0; right: 0; width: 360px; max-width: 90vw; height: 100%; background: var(--panel-bg);
+    border-left: 1px solid var(--border); box-shadow: var(--shadow); z-index: 1000; overflow-y: auto; padding: 16px; }
+  .detail-close { position: absolute; top: 8px; right: 8px; font-size: 18px; line-height: 1; padding: 4px 8px; }
+  .detail-content h2 { font-size: 16px; margin: 24px 0 6px 0; line-height: 1.35; }
+  .detail-meta { font-size: 12px; color: var(--text-muted); margin-bottom: 12px; line-height: 1.5; }
+  .detail-field { margin-bottom: 12px; }
+  .detail-field > label { display: block; font-size: 11.5px; text-transform: uppercase; letter-spacing: 0.02em; color: var(--text-muted); margin-bottom: 4px; }
+  .detail-field p { margin: 0; line-height: 1.5; word-break: break-word; }
+  .mappings-list { display: flex; flex-direction: column; gap: 8px; }
+  .mapping-card { border: 1px solid var(--border); border-left: 3px solid var(--card-color, var(--border)); border-radius: 6px; padding: 8px 10px; }
+  .mapping-card .mapping-label { font-weight: 500; margin-bottom: 4px; }
+  .mapping-card .mapping-meta { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; font-size: 12px; color: var(--text-muted); }
+  .mapping-card .mapping-uri { font-size: 11.5px; word-break: break-all; display: block; margin-top: 4px; }
+  .link-list { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 3px; }
+
+  /* Validation */
+  :root { --st-correct: var(--ok); --st-incorrect: var(--danger); --st-unsure: #b08800; --st-disputed: #c4561a; }
+  @media (prefers-color-scheme: dark) { :root { --st-unsure: #e0c341; --st-disputed: #f0975a; } }
+  .val-name { display: flex; gap: 6px; }
+  .val-name input { flex: 1; padding: 6px 8px; border: 1px solid var(--border); border-radius: 6px; background: var(--input-bg); }
+  .val-bar { display: flex; height: 8px; border-radius: 4px; overflow: hidden; background: var(--chip-bg); margin: 8px 0 6px; gap: 2px; }
+  .val-bar span { display: block; height: 100%; }
+  .val-legend { display: grid; grid-template-columns: auto 1fr auto; gap: 2px 8px; font-size: 12.5px; align-items: center; }
+  .val-legend .num { font-variant-numeric: tabular-nums; text-align: right; font-weight: 600; }
+  .btn-primary { background: var(--accent); color: var(--accent-contrast); border-color: var(--accent); }
+  .btn-row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-top: 8px; }
+  .btn-small { padding: 3px 9px; font-size: 12px; }
+  .review { margin-top: 8px; padding-top: 8px; border-top: 1px dashed var(--border); font-size: 12.5px; }
+  .rv-status { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin-bottom: 6px; }
+  .rv-pill { font-size: 11px; padding: 1px 8px; border-radius: 10px; border: 1px solid currentColor; font-weight: 600; }
+  .st-correct { color: var(--st-correct); } .st-incorrect { color: var(--st-incorrect); } .st-unsure { color: var(--st-unsure); }
+  .st-disputed { color: var(--st-disputed); } .st-unreviewed { color: var(--text-muted); }
+  .rv-actions { display: flex; gap: 4px; flex-wrap: wrap; align-items: center; }
+  .rv-actions button { padding: 3px 9px; font-size: 12px; border: 1px solid var(--border); border-radius: 6px; background: var(--panel-bg); cursor: pointer; }
+  .rv-actions button:hover { border-color: currentColor; }
+  .rv-actions button[data-verdict="correct"] { color: var(--st-correct); }
+  .rv-actions button[data-verdict="incorrect"] { color: var(--st-incorrect); }
+  .rv-actions button[data-verdict="unsure"] { color: var(--st-unsure); }
+  .rv-actions select { width: auto; margin: 0; padding: 3px 6px; font-size: 12px; }
+  .review textarea { width: 100%; margin-top: 6px; min-height: 48px; padding: 6px 8px; border: 1px solid var(--border); border-radius: 6px;
+    background: var(--input-bg); color: var(--text); font: inherit; font-size: 12.5px; resize: vertical; }
+  .review details { margin-top: 6px; }
+  .review summary { cursor: pointer; color: var(--text-muted); }
+  .rv-history { margin: 4px 0 0; padding-left: 16px; color: var(--text-muted); }
+  .rv-msg { color: var(--danger); font-size: 12px; margin-top: 4px; }
+  .mapping-card.focus { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+  @media (max-width: 900px) {
+    .layout { flex-direction: column; height: auto; }
+    .panel-controls { width: auto; max-width: none; border-right: none; border-bottom: 1px solid var(--border); max-height: 55vh; }
+    .split-container { min-height: 640px; }
+    .detail-panel { width: 100%; }
+  }
+</style>
+</head>
+<body>
+
+<header class="topbar">
+  <h1>MFD Habitat Ontology</h1>
+  <div class="topbar-actions">
+    <span id="loadStatus" class="load-status">Loading…</span>
+    <a id="srcLink" href="https://github.com/cmc-aau/mfd_metadata" target="_blank" rel="noopener">Source: cmc-aau/mfd_metadata</a>
+  </div>
+</header>
+
+<div class="layout">
+  <aside class="panel-controls">
+    <div class="panel-scroll">
+      <section class="control-group">
+        <label for="searchInput">Search</label>
+        <input type="search" id="searchInput" placeholder="habitat name or code, e.g. heath, 7230, N1" autocomplete="off">
+        <select id="xwFilter" aria-label="Filter classes by crosswalk">
+          <option value="">All classes</option>
+          <option value="natura2000">Linked to Natura 2000</option>
+          <option value="eunis">Linked to EUNIS</option>
+          <option value="empo">Linked to EMPO</option>
+          <option value="none">No crosswalk</option>
+        </select>
+      </section>
+
+      <section class="control-group" id="validation">
+        <h3>Validation</h3>
+        <div class="val-name"><input type="text" id="reviewerName" placeholder="Your name (saved with each review)" maxlength="80" autocomplete="name" aria-label="Reviewer name"></div>
+        <div class="val-bar" id="valBar" role="img"></div>
+        <div class="val-legend" id="valLegend"></div>
+        <label for="reviewFilter" class="muted" style="display:block;margin-top:8px">Show predicted matches</label>
+        <select id="reviewFilter" style="margin-top:2px">
+          <option value="">All</option>
+          <option value="unreviewed">Not reviewed yet</option>
+          <option value="flagged">Flagged by the linker, not reviewed</option>
+          <option value="correct">Correct</option>
+          <option value="incorrect">Incorrect</option>
+          <option value="unsure">Unsure</option>
+          <option value="disputed">Reviewers disagree</option>
+        </select>
+        <div class="btn-row">
+          <button class="btn btn-primary btn-small" id="nextReview" type="button">Next to review</button>
+          <a class="muted" href="api/reviews/export.csv">CSV</a>
+          <a class="muted" href="api/reviews/export.sssom.tsv">SSSOM</a>
+        </div>
+        <div class="muted" style="margin-top:6px">Decisions are stored on the server with your name and the time. Every decision is kept.</div>
+      </section>
+
+      <section class="control-group">
+        <h3>Hierarchy</h3>
+        <div class="tree" id="tree" role="tree"></div>
+      </section>
+
+      <section class="control-group">
+        <h3>Linked to</h3>
+        <div class="check-list" id="kindChecks"></div>
+      </section>
+
+      <section class="control-group">
+        <label for="depthSelect">Graph depth (nothing selected)</label>
+        <select id="depthSelect" style="margin-top:0">
+          <option value="1">Sample type and area type</option>
+          <option value="2" selected>Down to MFDO1</option>
+          <option value="3">Down to MFDO2</option>
+          <option value="4">All five levels</option>
+        </select>
+        <div class="muted" style="margin-top:4px">A selected class always shows everything below it.</div>
+      </section>
+
+      <section class="control-group">
+        <label for="confSlider">Min confidence: <span id="confValue">0.50</span></label>
+        <input type="range" id="confSlider" min="0" max="1" step="0.05" value="0.50">
+      </section>
+
+      <section class="control-group">
+        <h3>Stats</h3>
+        <dl class="stats-list" id="statsList"></dl>
+      </section>
+
+      <section class="control-group">
+        <h3>Legend</h3>
+        <div class="legend-block" id="legend"></div>
+      </section>
+    </div>
+  </aside>
+
+  <main class="panel-main">
+    <div class="pane-toggle" role="tablist">
+      <button class="pane-toggle-btn active" data-pane="overview">Overview</button>
+      <button class="pane-toggle-btn" data-pane="split">Split</button>
+      <button class="pane-toggle-btn" data-pane="map">Map full</button>
+      <button class="pane-toggle-btn" data-pane="graph">Graph full</button>
+      <span class="graph-info" id="graphInfo"></span>
+    </div>
+
+    <div class="split-container mode-overview" id="splitContainer">
+      <section class="pane pane-overview" id="overviewPane"><div class="ov" id="overview"></div></section>
+
+      <section class="pane pane-map" id="mapPane">
+        <div id="map"></div>
+        <div class="map-card">
+          <h3>Range in Denmark</h3>
+          <div id="mapSelected"><div class="map-hint">Pick a class in the hierarchy or a node in the graph to see where its Natura 2000 habitat occurs in Denmark.</div></div>
+          <div class="map-section">
+            <h3>Background layers</h3>
+            <label class="map-layer-row"><input type="checkbox" id="lyrSites" checked> Natura 2000 protected sites</label>
+          </div>
+        </div>
+      </section>
+
+      <div class="splitter" id="splitter" title="Drag to resize"></div>
+
+      <section class="pane pane-graph" id="graphPane">
+        <div id="cy"></div>
+        <div class="graph-hint" id="graphHint"></div>
+      </section>
+    </div>
+  </main>
+</div>
+
+<aside class="detail-panel" id="detailPanel" hidden>
+  <button class="btn btn-ghost detail-close" id="detailClose" aria-label="Close">×</button>
+  <div class="detail-content" id="detailContent"></div>
+</aside>
+
+<script>
+// ─── Helpers and colours ─────────────────────────────────────────────────────
+const $ = (id) => document.getElementById(id);
+const cssVar = (n) => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+const escHtml = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const safeUrl = (u) => /^https?:\/\//i.test(String(u || '')) ? u : '#';
+const sqlStr = (s) => String(s).replace(/'/g, "''");
+
+// Natura 2000 and the linked ontologies use the Natura 2000 viewer's colours and shapes.
+const MFD = { label: 'MFD class', color: '#5e8c31', shape: 'round-rectangle' };
+const N2K = { label: 'Natura 2000', color: cssVar('--x-n2k'), shape: 'ellipse' };
+// The ontology's three crosswalks, treated alike; key = field on a tree node.
+const XWALK = [
+  { key: 'natura2000', kind: 'natura2000', label: 'Natura 2000', short: 'N2K', css: '--x-n2k' },
+  { key: 'eunis', kind: 'eunis_mfd', label: 'EUNIS', short: 'EUNIS', css: '--x-eunis' },
+  { key: 'empo', kind: 'empo', label: 'EMPO', short: 'EMPO', css: '--x-empo' },
+];
+const XW_KINDS = XWALK.map((x) => x.kind);
+const SOURCES = {
+  wikidata: { label: 'Wikidata', color: '#3498db', shape: 'diamond' },
+  eunis: { label: 'EUNIS (linker)', color: '#c0a03a', shape: 'hexagon' },
+  ols4_envo: { label: 'ENVO (OLS4)', color: '#27ae60', shape: 'ellipse' },
+  eunis_mfd: { label: 'EUNIS', color: cssVar('--x-eunis'), shape: 'hexagon' },
+  empo: { label: 'EMPO', color: cssVar('--x-empo'), shape: 'tag' },
+};
+const ADDED_PALETTE = ['#00897b', '#d81b60', '#5e35b1', '#6d4c41', '#039be5', '#7cb342', '#f4511e', '#546e7a'];
+let addedCount = 0;
+function sourceOf(kind) {
+  if (kind === 'mfd') return MFD;
+  if (kind === 'natura2000') return N2K;
+  if (!SOURCES[kind]) SOURCES[kind] = { label: kind.replace(/^ols4_/, '').toUpperCase(), color: ADDED_PALETTE[addedCount++ % ADDED_PALETTE.length], shape: 'round-rectangle' };
+  return SOURCES[kind];
+}
+const MATCH_CLASS = { exactMatch: 'type-exact', closeMatch: 'type-close', broadMatch: 'type-broad', narrowMatch: 'type-narrow', relatedMatch: 'type-related' };
+const shortMatch = (m) => (m || '').replace('skos:', '');
+
+// ─── State ───────────────────────────────────────────────────────────────────
+let nodes = [], byId = {}, kids = {};
+let graph = { nodes: [], edges: [], meta: {} }, gById = {}, cy = null;
+let selected = null, gFocus = null, pane = 'overview', graphDirty = true, mapFitted = false, meta = {};
+let reviews = {}, lastDetail = null, focusKey = null;
+const hiddenKinds = new Set();
+
+// ─── Load ────────────────────────────────────────────────────────────────────
+Promise.all(['ontology', 'graph'].map((n) => fetch(`data/${n}.json`).then((r) => r.ok ? r.json() : null))).then(([o, g]) => {
+  if (!o) { $('loadStatus').textContent = 'No ontology data. Run python -m mfd.build'; return; }
+  nodes = o.nodes;
+  nodes.forEach((n, i) => { n.i = i; byId[n.id] = n; (kids[n.parent ?? ''] ??= []).push(n); });
+  if (g) graph = g;
+  graph.nodes.forEach((n) => gById[n.id] = n);
+  $('srcLink').href = o.meta.source;
+  $('loadStatus').textContent = `${nodes.length} classes · ${graph.nodes.length} graph nodes`;
+  meta = o.meta;
+  drawStats(o.meta);
+  drawKindChecks();
+  drawLegend();
+  drawTree();
+  drawOverview();
+  drawGraph();
+  loadReviews();
+});
+
+function drawStats(meta) {
+  const n2k = graph.nodes.filter((n) => n.kind === 'natura2000');
+  const rows = [
+    ['MFD classes', meta.classes],
+    ...XWALK.map((x) => [`Linked to ${x.label}`, nodes.filter((n) => n[x.key]).length]),
+    ['Natura 2000 codes joined to the linker', n2k.filter((n) => n.linked).length],
+    ['Linker matches', graph.edges.filter((e) => e.kind === 'linker').length],
+  ];
+  $('statsList').innerHTML = rows.map(([k, v]) => `<div><dt>${k}</dt><dd>${(v ?? 0).toLocaleString()}</dd></div>`).join('');
+}
+
+function drawKindChecks() {
+  const check = (k) => {
+    const s = sourceOf(k), count = graph.nodes.filter((n) => n.kind === k).length;
+    return `<label><input type="checkbox" data-kind="${escHtml(k)}" checked><span class="check-swatch" style="background:${s.color}"></span> ${escHtml(s.label)} <span class="muted">${count}</span></label>`;
+  };
+  const linker = [...new Set(graph.nodes.map((n) => n.kind))].filter((k) => !['mfd', ...XW_KINDS].includes(k));
+  $('kindChecks').innerHTML = '<div class="check-head">MFD ontology crosswalk</div>' + XW_KINDS.map(check).join('') +
+    '<div class="check-head">Natura 2000 linker (through Natura 2000)</div>' +
+    (linker.length ? linker.map(check).join('') : '<div class="muted">No linker output found.</div>');
+}
+
+function drawLegend() {
+  const node = (s, round = true) => `<div class="legend-row"><span class="legend-node" style="background:${s.color};border-radius:${round ? '50%' : '3px'}"></span> ${escHtml(s.label)}</div>`;
+  $('legend').innerHTML = node(MFD, false) + XW_KINDS.map((k) => node(sourceOf(k))).join('') +
+    `<div class="legend-row"><span class="legend-edge"></span> exactMatch / MFD crosswalk</div>
+     <div class="legend-row"><span class="legend-edge" style="border-top-style:dashed"></span> closeMatch</div>
+     <div class="legend-row"><span class="legend-edge" style="border-top-style:dotted"></span> relatedMatch</div>
+     <div class="legend-row"><span class="legend-edge" style="border-top-width:3px"></span> broad / narrow: arrow points to the broader term</div>
+     <div class="muted">Linked-term colours follow "Linked to" above.</div>`;
+}
+
+// ─── Hierarchy tree (also the search) ────────────────────────────────────────
+function rowHtml(n) {
+  const has = kids[n.id]?.length;
+  const chip = `<span class="chips">${xwChips(n)}</span>`;
+  return `<div class="node" data-id="${escHtml(n.id)}">
+    <div class="tree-row" role="treeitem" style="padding-left:${n.level * 14 + 8}px">
+      <span class="tw">${has ? '▶' : ''}</span><span class="lbl" title="${escHtml(n.label)}">${escHtml(n.label)}</span>${chip}
+    </div>${has ? `<div class="kids">${kids[n.id].map(rowHtml).join('')}</div>` : ''}</div>`;
+}
+
+function drawTree() {
+  $('tree').innerHTML = (kids[''] || []).map(rowHtml).join('');
+  $('tree').querySelectorAll('.node').forEach((el) => {
+    el.firstElementChild.addEventListener('click', (e) => {
+      if (e.target.classList.contains('tw')) { toggle(el); return; }
+      if (selected === el.dataset.id) { select(null); return; }
+      el.classList.add('open'); setArrow(el);
+      if (pane === 'overview') setPane('split');
+      select(el.dataset.id, true);
+    });
+  });
+}
+// One chip per crosswalk the class carries; EMPO shows its name on hover (it is long).
+function xwChips(n) {
+  return XWALK.filter((x) => n[x.key]).map((x) => x.key === 'empo'
+    ? `<span class="code-chip xw" style="--c:var(${x.css})" title="EMPO: ${escHtml(n.empo)}">EMPO</span>`
+    : `<span class="code-chip xw" style="--c:var(${x.css})" title="${x.label}">${x.short} ${escHtml(n[x.key])}</span>`).join('');
+}
+const setArrow = (el) => { const tw = el.querySelector(':scope > .tree-row .tw'); if (tw.textContent) tw.textContent = el.classList.contains('open') ? '▼' : '▶'; };
+const toggle = (el) => { el.classList.toggle('open'); setArrow(el); };
+
+function subtree(id) {
+  const out = new Set(), stack = [byId[id]];
+  while (stack.length) { const n = stack.pop(); out.add(n.i); (kids[n.id] || []).forEach((k) => stack.push(k)); }
+  return out;
+}
+
+function revealInTree(id) {
+  for (let p = byId[byId[id]?.parent]; p; p = byId[p.parent]) {
+    const el = document.querySelector(`.node[data-id="${CSS.escape(p.id)}"]`);
+    if (el) { el.classList.add('open'); setArrow(el); }
+  }
+  document.querySelector(`.node[data-id="${CSS.escape(id)}"] > .tree-row`)?.scrollIntoView({ block: 'nearest' });
+}
+
+function filterTree() {
+  const q = $('searchInput').value.trim().toLowerCase();
+  const xw = $('xwFilter').value;
+  const textHit = (n) => n.label.toLowerCase().includes(q) || [n.code, n.natura2000, n.eunis].some((v) => v && v.toLowerCase().startsWith(q))
+    || (n.empo || '').toLowerCase().includes(q);
+  const xwHit = (n) => !xw || (xw === 'none' ? n.level >= 2 && !XWALK.some((x) => n[x.key]) : !!n[xw]);
+  // Text: a match shows with its ancestors (opened) and everything below it.
+  // Crosswalk: a class that has it shows with its ancestors.
+  const filtering = !!q || !!xw;
+  const show = new Set();
+  if (filtering) nodes.forEach((n) => {
+    if (xwHit(n) && (!q || textHit(n) || [...ancestors(n)].some(textHit))) {
+      for (let p = n; p; p = byId[p.parent]) show.add(p.id);
+      if (!xw) subtree(n.id).forEach((i) => show.add(nodes[i].id));
+    }
+  });
+  document.querySelectorAll('.node').forEach((el) => {
+    const n = byId[el.dataset.id], ok = !filtering || show.has(n.id);
+    el.style.display = ok ? '' : 'none';
+    const lbl = el.querySelector(':scope > .tree-row .lbl');
+    const at = q ? n.label.toLowerCase().indexOf(q) : -1;
+    lbl.innerHTML = at >= 0 ? escHtml(n.label.slice(0, at)) + '<mark>' + escHtml(n.label.slice(at, at + q.length)) + '</mark>' + escHtml(n.label.slice(at + q.length)) : escHtml(n.label);
+    if (el.querySelector(':scope > .kids')) { el.classList.toggle('open', filtering && ok); setArrow(el); }
+  });
+}
+function* ancestors(n) { for (let p = byId[n.parent]; p; p = byId[p.parent]) yield p; }
+$('searchInput').addEventListener('input', filterTree);
+$('xwFilter').addEventListener('change', filterTree);
+
+// ─── Selection ───────────────────────────────────────────────────────────────
+function select(id, openDetail = false) {
+  selected = id; gFocus = null;
+  document.querySelectorAll('.tree-row.sel').forEach((r) => r.classList.remove('sel'));
+  if (id) document.querySelector(`.node[data-id="${CSS.escape(id)}"] > .tree-row`)?.classList.add('sel');
+  drawGraph();
+  if (id) { showRange(rangeForClass(byId[id])); if (openDetail) showClassDetail(byId[id]); }
+  else { showRange(null); hideDetail(); }
+}
+
+// The class's own Natura 2000 code, or failing that its nearest ancestor's.
+function rangeForClass(n) {
+  for (let p = n; p; p = byId[p.parent]) {
+    if (p.natura2000) return { code: p.natura2000, label: gById['n2k:' + p.natura2000]?.label || 'Natura 2000 ' + p.natura2000, via: p === n ? null : p.label };
+  }
+  return { code: null, label: n.label };
+}
+
+// ─── Knowledge graph ─────────────────────────────────────────────────────────
+function graphElements() {
+  // All three crosswalks are always drawn; without a selection the depth control
+  // keeps the graph readable instead (crosswalks start at MFDO1).
+  const depth = +$('depthSelect').value;
+  const keep = new Set((selected ? [...subtree(selected)].map((i) => nodes[i]) : nodes.filter((n) => n.level <= depth)).map((n) => 'mfd:' + n.id));
+  const minConf = +$('confSlider').value;
+  const shown = (id) => gById[id] && !hiddenKinds.has(gById[id].kind);
+  const ids = new Set(), edges = [];
+  graph.edges.forEach((e) => {
+    if (e.kind === 'mfd_crosswalk' && keep.has(e.source) && shown(e.target)) { ids.add(e.source); ids.add(e.target); edges.push(e); }
+  });
+  graph.edges.forEach((e) => {
+    if (e.kind === 'linker' && ids.has(e.source) && (e.confidence ?? 1) >= minConf && shown(e.target) && reviewShown(e)) { ids.add(e.target); edges.push(e); }
+  });
+  const muted = cssVar('--text-muted');
+  return {
+    nodes: [...ids].map((id) => { const g = gById[id], s = sourceOf(g.kind); return { data: { ...g, color: s.color, shape: s.shape } }; }),
+    edges: edges.map((e, i) => ({ data: { id: 'e' + i, ...e, rv: e.kind === 'linker' ? reviewStatus(e) : 'none', match_type: e.match || 'crosswalk', confidence: e.confidence ?? 1,
+      color: e.kind === 'linker' ? sourceOf(gById[e.target].kind).color : muted } })),
+  };
+}
+
+function drawGraph() {
+  if (pane === 'overview' || pane === 'map') { graphDirty = true; return; }
+  graphDirty = false;
+  const els = graphElements();
+  const text = cssVar('--text'), muted = cssVar('--text-muted'), bg = cssVar('--bg');
+  if (cy) cy.destroy();
+  cy = cytoscape({
+    container: $('cy'), elements: els, minZoom: 0.05, maxZoom: 4,
+    style: [
+      { selector: 'node', style: { 'background-color': 'data(color)', 'shape': 'data(shape)', 'width': 16, 'height': 16,
+          'label': 'data(label)', 'font-size': '7px', 'color': muted, 'text-wrap': 'ellipsis', 'text-max-width': '80px',
+          'text-valign': 'bottom', 'text-margin-y': 3, 'text-outline-color': bg, 'text-outline-width': 1.5 } },
+      { selector: 'node[kind="mfd"]', style: { 'width': 22, 'height': 22, 'font-size': '9px', 'color': text, 'text-wrap': 'wrap', 'text-max-width': '90px',
+          'border-width': 2, 'border-color': bg, 'text-outline-width': 2 } },
+      { selector: 'node[kind="natura2000"], node[kind="eunis_mfd"], node[kind="empo"]', style: { 'width': 26, 'height': 26, 'font-size': '9px', 'color': text, 'text-wrap': 'wrap', 'text-max-width': '90px',
+          'border-width': 2, 'border-color': bg, 'text-outline-width': 2 } },
+      { selector: 'node[kind="natura2000"][!linked]', style: { 'background-opacity': 0.45 } },
+      { selector: 'edge', style: { 'line-color': 'data(color)', 'target-arrow-color': 'data(color)', 'source-arrow-color': 'data(color)',
+          'width': 'mapData(confidence, 0.3, 1.0, 1, 3.5)', 'opacity': 'mapData(confidence, 0.3, 1.0, 0.45, 0.9)',
+          'curve-style': 'bezier', 'arrow-scale': 0.8 } },
+      { selector: 'edge[kind="mfd_crosswalk"]', style: { 'width': 1.5, 'opacity': 0.6 } },
+      { selector: 'edge[match_type="skos:closeMatch"]', style: { 'line-style': 'dashed', 'line-dash-pattern': [6, 3] } },
+      { selector: 'edge[match_type="skos:relatedMatch"]', style: { 'line-style': 'dotted' } },
+      // the arrow points at the broader term
+      { selector: 'edge[match_type="skos:broadMatch"]', style: { 'target-arrow-shape': 'triangle' } },
+      { selector: 'edge[match_type="skos:narrowMatch"]', style: { 'source-arrow-shape': 'triangle' } },
+      { selector: 'node.highlighted', style: { 'border-width': 4, 'border-color': cssVar('--accent'), 'z-index': 999 } },
+      // Review state wins over the ontology colour: that is what a reviewer scans for.
+      { selector: 'edge[rv="correct"]', style: { 'line-color': cssVar('--st-correct'), 'target-arrow-color': cssVar('--st-correct'), 'width': 3, 'opacity': 0.95 } },
+      { selector: 'edge[rv="incorrect"]', style: { 'line-color': cssVar('--st-incorrect'), 'target-arrow-color': cssVar('--st-incorrect'), 'line-style': 'dashed', 'line-dash-pattern': [3, 3], 'opacity': 0.9 } },
+      { selector: 'edge[rv="unsure"]', style: { 'line-color': cssVar('--st-unsure'), 'target-arrow-color': cssVar('--st-unsure'), 'opacity': 0.9 } },
+      { selector: 'edge[rv="disputed"]', style: { 'line-color': cssVar('--st-disputed'), 'target-arrow-color': cssVar('--st-disputed'), 'width': 3, 'opacity': 0.95 } },
+      { selector: '.faded', style: { 'opacity': 0.12 } },
+    ],
+    // Not animated: a focus (zoom to a node) right after drawing must see the final positions.
+    layout: { name: 'cose', animate: false, nodeRepulsion: 6000,
+              idealEdgeLength: 70, gravity: 0.5, numIter: 1000, randomize: true, padding: 30 },
+  });
+  cy.on('tap', 'node', (evt) => focusGraphNode(evt.target.id(), true));
+  cy.on('tap', (evt) => { if (evt.target === cy) { gFocus = null; highlight(); } });
+  cy.on('dbltap', 'node[kind="mfd"]', (evt) => { const ref = evt.target.data('ref'); revealInTree(ref); select(ref, true); });
+  $('graphInfo').textContent = `${els.nodes.length} nodes · ${els.edges.length} links${selected ? ' · ' + byId[selected].label : ''}`;
+  $('graphHint').textContent = selected
+    ? 'Click a node for its links and its range on the map. Double-click an MFD class to select it.'
+    : 'MFD classes and their EMPO, Natura 2000 and EUNIS crosswalk, with the Natura 2000 linker\'s matches. Pick a class in the hierarchy to see everything below it.';
+}
+
+function highlight() {
+  if (!cy) return;
+  cy.elements().removeClass('faded highlighted');
+  const n = gFocus && cy.getElementById(gFocus);
+  if (!n || !n.length) return;
+  // Its whole chain: up to the MFD classes, down to the linked terms.
+  const keep = n.closedNeighborhood().union(n.predecessors()).union(n.successors());
+  cy.elements().not(keep).addClass('faded');
+  n.addClass('highlighted');
+  cy.animate({ fit: { eles: keep, padding: 60 } }, { duration: 400 });
+}
+
+function focusGraphNode(id, openDetail) {
+  gFocus = id;
+  highlight();
+  const g = gById[id];
+  if (!g) return;
+  if (g.kind === 'mfd') { showRange(rangeForClass(byId[g.ref])); if (openDetail) showClassDetail(byId[g.ref]); return; }
+  // Natura 2000 node: its code; a linked term: the Natura 2000 habitat it was matched from.
+  const n2k = g.kind === 'natura2000' ? g : gById[graph.edges.find((e) => e.target === id && e.kind === 'linker')?.source];
+  if (n2k) showRange({ code: n2k.code, label: n2k.label });
+  if (openDetail) showGraphNodeDetail(g);
+}
+
+$('kindChecks').addEventListener('change', (e) => {
+  const k = e.target.dataset.kind;
+  if (!k) return;
+  e.target.checked ? hiddenKinds.delete(k) : hiddenKinds.add(k);
+  drawGraph();
+});
+$('confSlider').addEventListener('input', (e) => { $('confValue').textContent = (+e.target.value).toFixed(2); });
+$('confSlider').addEventListener('change', drawGraph);
+$('depthSelect').addEventListener('change', () => { if (!selected) drawGraph(); });
+
+// ─── Overview: the ontology as the MFD paper describes it ────────────────────
+function drawOverview() {
+  const LEVELS = ['Sample type', 'Area type', 'MFDO1', 'MFDO2', 'MFDO3'];
+  const at = LEVELS.map((_, l) => nodes.filter((n) => n.level === l));
+  const distinct = at.map((a) => new Set(a.map((n) => n.label)).size);
+  const habitat = nodes.filter((n) => n.level >= 2);   // crosswalks are recorded from MFDO1 down
+  const pct = (k, of) => of ? Math.round(100 * k / of) : 0;
+  const cov = (x, list) => {
+    const k = list.filter((n) => n[x.key]).length, v = pct(k, list.length);
+    return `<div class="cov" title="${k} of ${list.length} classes have a ${x.label} code">
+      <div class="bar"><span style="width:${v}%;--c:var(${x.css})"></span></div><span class="t">${k} · ${v}%</span></div>`;
+  };
+  const targets = (x) => new Set(nodes.map((n) => n[x.key]).filter(Boolean)).size;
+
+  const path = LEVELS.map((l, i) => `<span class="lv">${l} <b>${at[i].length}</b></span>`).join('<span class="muted">›</span>');
+  const tiles = XWALK.map((x) => {
+    const k = habitat.filter((n) => n[x.key]).length;
+    const extra = x.key === 'natura2000'
+      ? `${graph.nodes.filter((g) => g.kind === 'natura2000' && g.linked).length} of the codes joined to the Natura 2000 linker`
+      : x.key === 'empo' ? 'EMPO levels 1–3, e.g. Free-living › Saline › Sediment' : 'EUNIS habitat codes';
+    return `<div class="tile"><div class="k"><span class="check-swatch" style="background:var(${x.css})"></span>${x.label}</div>
+      <div class="v">${pct(k, habitat.length)}%</div>
+      <div class="s">${k} of ${habitat.length} habitat classes · ${targets(x)} distinct codes<br>${extra}</div></div>`;
+  }).join('');
+
+  const rows = LEVELS.map((l, i) => `<tr><td>${l}</td><td class="num">${at[i].length}</td><td class="num">${distinct[i]}</td>
+    ${XWALK.map((x) => `<td>${i < 2 ? '<span class="muted">—</span>' : cov(x, at[i])}</td>`).join('')}</tr>`).join('');
+
+  const types = at[0], areas = [...new Set(at[1].map((n) => n.label))];
+  const grid = types.map((t) => `<tr><td>${escHtml(t.label)}</td>${areas.map((a) => {
+    const area = byId[t.id + ' > ' + a];
+    const k = area ? (kids[area.id] || []).length : 0;
+    return `<td class="cell">${area ? `<button data-select="${escHtml(area.id)}" title="${escHtml(t.label)} › ${escHtml(a)}: ${k} MFDO1 classes">${k}</button>` : '<span class="muted">—</span>'}</td>`;
+  }).join('')}</tr>`).join('');
+
+  $('overview').innerHTML = `
+    <h2>MFD habitat ontology (MFDO)</h2>
+    <p>The Microflora Danica habitat classification has five levels: sample type and area type, then up to three increasingly specific habitat levels (MFDO1, MFDO2, MFDO3). Habitat classes carry a crosswalk to three other systems: EMPO, Natura 2000 and EUNIS.</p>
+    <div class="path">${path}</div>
+    <div class="note">Classes per level. A name can occur more than once on a level (e.g. "Saltwater" under Sediment and under Water), so each class is counted in its place in the hierarchy; distinct names are in the table.</div>
+
+    <h3>Validation of predicted matches</h3>
+    <div class="tile" style="max-width:520px"><div id="ovValidation"></div>
+      <div class="s" style="margin-top:6px">The Natura 2000 linker's matches from the habitats this ontology uses to Wikidata, EUNIS, ENVO and other ontologies. Review them from the detail panel, or with "Next to review" on the left.</div></div>
+
+    <h3>Crosswalk coverage (MFDO1–MFDO3)</h3>
+    <div class="tiles">${tiles}</div>
+
+    <h3>Levels</h3>
+    <table><thead><tr><th>Level</th><th class="num">Classes</th><th class="num">Distinct names</th>${XWALK.map((x) => `<th>${x.label}</th>`).join('')}</tr></thead>
+      <tbody>${rows}</tbody></table>
+    <div class="note">Sample type and area type have no crosswalk of their own; it is recorded from MFDO1 down.</div>
+
+    <h3>Sample type × area type: MFDO1 classes</h3>
+    <table><thead><tr><th></th>${areas.map((a) => `<th class="num">${escHtml(a)}</th>`).join('')}</tr></thead><tbody>${grid}</tbody></table>
+    <div class="note">Click a number to open that part of the hierarchy. The "Natural" area type covers habitats that are not directly managed and not in urban areas.</div>
+
+    <p class="note" style="margin-top:20px">Source: <a href="${escHtml(safeUrl(meta.source))}" target="_blank" rel="noopener">latest_mfd-habitat-ontology.xlsx</a>, cmc-aau/mfd_metadata (GPL-3.0).</p>`;
+}
+
+$('overview').addEventListener('click', (e) => {
+  const b = e.target.closest('[data-select]');
+  if (!b) return;
+  setPane('split');
+  revealInTree(b.dataset.select);
+  select(b.dataset.select, true);
+});
+
+// ─── Validation of predicted matches ─────────────────────────────────────────
+const STATUSES = [
+  ['correct', 'Correct'], ['incorrect', 'Incorrect'], ['unsure', 'Unsure'], ['disputed', 'Reviewers disagree'], ['unreviewed', 'Not reviewed'],
+];
+const keyOf = (e) => `${e.source}|${e.target}`;
+const predictedEdges = () => graph.edges.filter((e) => e.kind === 'linker');
+function reviewStatus(e) {
+  const r = reviews[keyOf(e)];
+  return !r ? 'unreviewed' : r.disputed ? 'disputed' : r.verdict;
+}
+function reviewShown(e) {
+  const f = $('reviewFilter').value;
+  if (!f) return true;
+  if (f === 'flagged') return !!e.review && reviewStatus(e) === 'unreviewed';
+  return reviewStatus(e) === f;
+}
+
+try { $('reviewerName').value = localStorage.getItem('mfdReviewer') || ''; } catch { /* storage blocked */ }
+$('reviewerName').addEventListener('change', (e) => { try { localStorage.setItem('mfdReviewer', e.target.value.trim()); } catch { /* storage blocked */ } });
+
+async function loadReviews() {
+  try {
+    const res = await fetch('api/reviews');
+    if (!res.ok) return;
+    reviews = (await res.json()).state || {};
+  } catch { return; }
+  reviewsChanged();
+}
+// Other reviewers' decisions come in while the page is open.
+setInterval(() => { if (!document.hidden) loadReviews(); }, 30000);
+document.addEventListener('visibilitychange', () => { if (!document.hidden) loadReviews(); });
+
+function reviewsChanged() {
+  drawProgress();
+  if (cy) cy.edges('[kind="linker"]').forEach((ed) => ed.data('rv', reviewStatus(ed.data())));
+  if ($('reviewFilter').value) drawGraph();
+  if (lastDetail && !$('detailPanel').hidden && !document.activeElement?.closest('.review')) lastDetail();
+}
+
+function progressHtml() {
+  const all = predictedEdges();
+  const count = Object.fromEntries(STATUSES.map(([k]) => [k, 0]));
+  all.forEach((e) => count[reviewStatus(e)]++);
+  const flagged = all.filter((e) => e.review && reviewStatus(e) === 'unreviewed').length;
+  const done = all.length - count.unreviewed;
+  const bar = STATUSES.filter(([k]) => k !== 'unreviewed' && count[k]).map(([k, l]) =>
+    `<span style="width:${100 * count[k] / (all.length || 1)}%;background:var(--st-${k})" title="${l}: ${count[k]}"></span>`).join('');
+  const legend = STATUSES.map(([k, l]) => `<span class="check-swatch" style="background:${k === 'unreviewed' ? 'var(--chip-bg);border:1px solid var(--border)' : `var(--st-${k})`}"></span><span>${l}</span><span class="num">${count[k]}</span>`).join('');
+  return { bar, legend, done, total: all.length, flagged };
+}
+
+function drawProgress() {
+  const p = progressHtml();
+  $('valBar').innerHTML = p.bar;
+  $('valBar').setAttribute('aria-label', `${p.done} of ${p.total} predicted matches reviewed`);
+  $('valLegend').innerHTML = p.legend + `<span></span><span class="muted">${p.done} of ${p.total} reviewed${p.flagged ? ` · ${p.flagged} flagged by the linker still open` : ''}</span><span></span>`;
+  if ($('ovValidation')) $('ovValidation').innerHTML = `<div class="k">Reviewed</div><div class="v">${p.done} <span class="muted" style="font-size:14px;font-weight:400">of ${p.total}</span></div>
+    <div class="val-bar">${p.bar}</div><div class="val-legend">${p.legend}</div>`;
+}
+
+function reviewBlock(e) {
+  const key = keyOf(e), r = reviews[key], st = reviewStatus(e);
+  const label = Object.fromEntries(STATUSES)[st];
+  const who = r ? ` ${escHtml(r.reviewer)}, ${escHtml(r.time.slice(0, 10))}` : '';
+  const current = r?.match_type || e.match;
+  const types = ['exactMatch', 'closeMatch', 'broadMatch', 'narrowMatch', 'relatedMatch'];
+  const history = r?.history?.length ? `<details><summary>History (${r.history.length})</summary><ul class="rv-history">${r.history.slice().reverse().map((h) =>
+    `<li>${escHtml(h.time.slice(0, 16).replace('T', ' '))} · ${escHtml(h.reviewer)}: ${escHtml(h.verdict)}${h.match_type ? ' as ' + escHtml(shortMatch(h.match_type)) : ''}${h.comment ? ' · ' + escHtml(h.comment) : ''}</li>`).join('')}</ul></details>` : '';
+  return `<div class="review" data-key="${escHtml(key)}">
+    <div class="rv-status"><span class="rv-pill st-${st}">${label}</span><span class="muted">${who}${r?.match_type && r.match_type !== e.match ? ' · as ' + escHtml(shortMatch(r.match_type)) : ''}</span>
+      ${e.review && st === 'unreviewed' ? '<span class="muted">· flagged by the linker for review</span>' : ''}</div>
+    ${r?.comment ? `<div class="muted" style="margin-bottom:6px">“${escHtml(r.comment)}”</div>` : ''}
+    <div class="rv-actions">
+      <button type="button" data-verdict="correct">Correct</button>
+      <select class="rv-type" aria-label="Match type if correct">${types.map((t) => `<option value="skos:${t}"${'skos:' + t === current ? ' selected' : ''}>${t}${'skos:' + t === e.match ? ' (predicted)' : ''}</option>`).join('')}</select>
+      <button type="button" data-verdict="incorrect">Incorrect</button>
+      <button type="button" data-verdict="unsure">Unsure</button>
+    </div>
+    <textarea class="rv-comment" maxlength="2000" placeholder="Comment (optional): why, or what the right term is"></textarea>
+    <div class="rv-msg" hidden></div>
+    ${history}
+  </div>`;
+}
+
+async function submitReview(btn) {
+  const box = btn.closest('.review'), msg = box.querySelector('.rv-msg');
+  const reviewer = $('reviewerName').value.trim();
+  if (!reviewer) {
+    msg.textContent = 'Enter your name under Validation on the left first.'; msg.hidden = false;
+    $('reviewerName').focus();
+    return;
+  }
+  const key = box.dataset.key, e = predictedEdges().find((x) => keyOf(x) === key);
+  if (!e) { msg.textContent = 'This match is no longer in the data; reload the page.'; msg.hidden = false; return; }
+  const type = box.querySelector('.rv-type').value;
+  const body = { key, verdict: btn.dataset.verdict, reviewer, comment: box.querySelector('.rv-comment').value,
+                 match_type: btn.dataset.verdict === 'correct' && type !== e.match ? type : null };
+  box.querySelectorAll('button').forEach((b) => b.disabled = true);
+  try {
+    const res = await fetch('api/reviews', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+    const out = await res.json();
+    if (!res.ok) throw new Error(out.error || 'Could not save.');
+    reviews[key] = out.state;
+    focusKey = key;
+    document.activeElement?.blur();
+    reviewsChanged();
+  } catch (err) {
+    msg.textContent = err.message; msg.hidden = false;
+    box.querySelectorAll('button').forEach((b) => b.disabled = false);
+  }
+}
+
+// Unreviewed matches: the linker's own flags first, then the least confident.
+$('nextReview').addEventListener('click', () => {
+  const open = predictedEdges().filter((e) => reviewStatus(e) === 'unreviewed')
+    .sort((a, b) => (b.review ? 1 : 0) - (a.review ? 1 : 0) || (a.confidence ?? 1) - (b.confidence ?? 1) || a.source.localeCompare(b.source));
+  if (!open.length) { $('valLegend').insertAdjacentHTML('beforeend', '<span></span><span class="muted">Everything has been reviewed.</span><span></span>'); return; }
+  const e = open[0];
+  focusKey = keyOf(e);
+  if (pane === 'overview' || pane === 'map') setPane('split');
+  if ($('reviewFilter').value && !reviewShown(e)) $('reviewFilter').value = '';
+  // Select the MFD class that points at this habitat, so its part of the graph is drawn.
+  const ref = gById[graph.edges.find((x) => x.kind === 'mfd_crosswalk' && x.target === e.source)?.source]?.ref;
+  if (ref) { revealInTree(ref); select(ref); } else { select(null); }
+  requestAnimationFrame(() => {
+    focusGraphNode(e.source, true);
+    document.querySelector(`.mapping-card[data-key="${CSS.escape(focusKey)}"]`)?.scrollIntoView({ block: 'center' });
+  });
+});
+$('reviewFilter').addEventListener('change', drawGraph);
+
+// ─── Detail panel ────────────────────────────────────────────────────────────
+function showDetail(html) { $('detailContent').innerHTML = html; $('detailPanel').hidden = false; }
+function hideDetail() { $('detailPanel').hidden = true; }
+$('detailClose').addEventListener('click', hideDetail);
+document.addEventListener('keydown', (e) => { if (e.key === 'Escape') hideDetail(); });
+
+function mappingCard(e, targetId) {
+  const t = gById[targetId], s = sourceOf(t.kind);
+  const type = e.kind === 'linker' ? shortMatch(e.match) : 'crosswalk';
+  const key = e.kind === 'linker' ? keyOf(e) : '';
+  return `<div class="mapping-card${key && key === focusKey ? ' focus' : ''}" ${key ? `data-key="${escHtml(key)}"` : ''} style="--card-color:${s.color}">
+    <div class="mapping-label"><a href="#" data-g="${escHtml(targetId)}">${escHtml(t.label)}</a></div>
+    <div class="mapping-meta"><span class="type-badge ${MATCH_CLASS[type] || 'type-crosswalk'}">${escHtml(type)}</span>
+      ${e.confidence != null ? `<span class="conf-badge">${(+e.confidence).toFixed(2)}</span>` : ''}<span>${escHtml(s.label)}</span></div>
+    ${t.url ? `<a class="mapping-uri" href="${escHtml(safeUrl(t.url))}" target="_blank" rel="noopener">${escHtml(t.url)}</a>` : ''}
+    ${e.kind === 'linker' ? reviewBlock(e) : ''}
+  </div>`;
+}
+
+const field = (label, html) => html ? `<div class="detail-field"><label>${label}</label>${html}</div>` : '';
+
+function showClassDetail(n) {
+  lastDetail = () => showClassDetail(n);
+  const path = [];
+  for (let p = byId[n.parent]; p; p = byId[p.parent]) path.unshift(p.label);
+  const out = graph.edges.filter((e) => e.source === 'mfd:' + n.id);
+  const n2kEdge = out.find((e) => gById[e.target]?.kind === 'natura2000');
+  const linker = n2kEdge ? graph.edges.filter((e) => e.source === n2kEdge.target && e.kind === 'linker').sort((a, b) => (b.confidence ?? 0) - (a.confidence ?? 0)) : [];
+  const n2k = n2kEdge && gById[n2kEdge.target];
+  showDetail(`
+    <h2>${escHtml(n.label)}</h2>
+    <div class="detail-meta"><span class="badge" style="background:${MFD.color}">${escHtml(n.level_name)}</span>
+      ${n.code ? ' Code ' + escHtml(n.code) : ''}${path.length ? '<br>' + escHtml(path.join(' › ')) : ''}</div>
+    ${field('Crosswalk (MFD ontology)', out.length ? `<div class="mappings-list">${out.map((e) => mappingCard(e, e.target)).join('')}</div>` : '<p class="muted">None recorded for this class.</p>')}
+    ${n2k ? field(`Natura 2000 ${escHtml(n2k.code)}: linked terms (${linker.length})`, linker.length
+      ? `<div class="mappings-list">${linker.map((e) => mappingCard(e, e.target)).join('')}</div>`
+      : `<p class="muted">${n2k.code.endsWith('00') ? 'A Natura 2000 group heading, not a habitat type, so the linker has no term for it.' : 'The linker has no term for this code.'}</p>`) : ''}
+    ${kids[n.id]?.length ? field(`Subclasses (${kids[n.id].length})`, `<ul class="link-list">${kids[n.id].map((k) => `<li><a href="#" data-select="${escHtml(k.id)}">${escHtml(k.label)}</a>${k.natura2000 ? ` <span class="code-chip">N2K ${escHtml(k.natura2000)}</span>` : ''}</li>`).join('')}</ul>`) : ''}`);
+}
+
+function showGraphNodeDetail(g) {
+  lastDetail = () => showGraphNodeDetail(g);
+  const s = sourceOf(g.kind);
+  const into = graph.edges.filter((e) => e.target === g.id), out = graph.edges.filter((e) => e.source === g.id);
+  const classes = into.filter((e) => gById[e.source]?.kind === 'mfd');
+  const from = into.filter((e) => gById[e.source]?.kind !== 'mfd');
+  showDetail(`
+    <h2>${escHtml(g.label)}</h2>
+    <div class="detail-meta"><span class="badge" style="background:${s.color}">${escHtml(s.label)}</span>${g.code ? ' Code ' + escHtml(g.code) : ''}</div>
+    ${g.full ? field('EMPO', `<p>${escHtml(g.full)}</p>`) : ''}
+    ${g.url ? field(g.kind === 'natura2000' ? 'Source' : 'URI', `<p><a href="${escHtml(safeUrl(g.url))}" target="_blank" rel="noopener">${escHtml(g.url)}</a></p>`) : ''}
+    ${g.kind === 'natura2000' && !g.linked ? field('Linker', `<p class="muted">${g.code.endsWith('00') ? 'A Natura 2000 group heading, not a habitat type.' : 'No term from the linker.'}</p>`) : ''}
+    ${from.length ? field(`Matched from (${from.length})`, `<div class="mappings-list">${from.map((e) => mappingCard(e, e.source)).join('')}</div>`) : ''}
+    ${out.length ? field(`Linked terms (${out.length})`, `<div class="mappings-list">${out.sort((a, b) => (b.confidence ?? 0) - (a.confidence ?? 0)).map((e) => mappingCard(e, e.target)).join('')}</div>`) : ''}
+    ${classes.length ? field(`MFD classes (${classes.length})`, `<ul class="link-list">${classes.map((e) => `<li><a href="#" data-select="${escHtml(gById[e.source].ref)}">${escHtml(gById[e.source].ref.split(' > ').join(' › '))}</a></li>`).join('')}</ul>`) : ''}`);
+}
+
+$('detailContent').addEventListener('click', (e) => {
+  const v = e.target.closest('button[data-verdict]');
+  if (v) { submitReview(v); return; }
+  const a = e.target.closest('a[data-g], a[data-select]');
+  if (!a) return;
+  e.preventDefault();
+  if (a.dataset.select) { revealInTree(a.dataset.select); select(a.dataset.select, true); return; }
+  if (pane === 'map' || pane === 'overview') setPane('split');
+  // A term outside the current selection: widen the graph so it is there to focus.
+  if (selected && !cy.getElementById(a.dataset.g).length) select(null);
+  focusGraphNode(a.dataset.g, true);
+});
+
+// ─── Map: Natura 2000 range in Denmark (Article 17, EEA) ─────────────────────
+const EEA = 'https://bio.discomap.eea.europa.eu/arcgis/rest/services';
+const ART17 = EEA + '/Article17/ART17_2019_2024_public/MapServer';
+const ART17_HABITATS = 5;
+const P = 'habitats_distribution3857_diss_multi';
+const STATUS = [
+  ['#289588', 'Favourable'], ['#faea9b', 'Unfavourable - Inadequate'], ['#c25327', 'Unfavourable - Bad'],
+  ['#bbbdbf', 'Unknown'], ['#747678', 'Not reported'],
+];
+const REGIONS = { ATL: 'Atlantic', CON: 'Continental', BOR: 'Boreal', MATL: 'Marine Atlantic', MBAL: 'Marine Baltic' };
+const DK_VIEW = [[54.4, 7.8], [57.9, 15.3]];
+
+// Tiles cut from an ArcGIS "export" endpoint, so the server can filter by habitat code.
+const ArcGisExportLayer = L.TileLayer.extend({
+  getTileUrl(coords) {
+    const size = this.getTileSize();
+    const crs = L.CRS.EPSG3857;
+    const nw = crs.project(this._map.unproject([coords.x * size.x, coords.y * size.y], coords.z));
+    const se = crs.project(this._map.unproject([(coords.x + 1) * size.x, (coords.y + 1) * size.y], coords.z));
+    const p = new URLSearchParams({
+      bbox: [nw.x, se.y, se.x, nw.y].join(','), bboxSR: 3857, imageSR: 3857,
+      size: `${size.x},${size.y}`, format: 'png32', transparent: true, f: 'image', ...this.options.params,
+    });
+    return `${this._url}?${p}`;
+  },
+});
+
+const map = L.map('map', { zoomControl: false }).fitBounds(DK_VIEW);
+L.control.zoom({ position: 'topright' }).addTo(map);
+L.tileLayer(`https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_${matchMedia('(prefers-color-scheme: dark)').matches ? 'Dark' : 'Light'}_Gray_Base/MapServer/tile/{z}/{y}/{x}`, {
+  attribution: 'Base map &copy; Esri | Ontology: Microflora Danica (GPL-3.0)', maxZoom: 16,
+}).addTo(map);
+const sitesLayer = L.tileLayer(EEA + '/ProtectedSites/Natura2000SitesCache/MapServer/tile/{z}/{y}/{x}', {
+  opacity: 0.45, attribution: 'Natura 2000 sites &copy; EEA', maxZoom: 19,
+}).addTo(map);
+let rangeLayer = null, rangeReq = 0, rangeKey = null;
+
+$('lyrSites').addEventListener('change', (e) => e.target.checked ? sitesLayer.addTo(map) : map.removeLayer(sitesLayer));
+
+// Group headings (1200, 9100, ...) cover every habitat type under them.
+function codeWhere(code) {
+  const cond = code.endsWith('00') ? `${P}.habitat_code LIKE '${sqlStr(code.replace(/0+$/, ''))}%'` : `${P}.habitat_code='${sqlStr(code)}'`;
+  return `${cond} AND ${P}.country='DK'`;
+}
+
+async function showRange(r) {
+  const key = r ? `${r.code}|${r.via || ''}|${r.label}` : null;
+  if (key === rangeKey) return;
+  rangeKey = key;
+  if (rangeLayer) { map.removeLayer(rangeLayer); rangeLayer = null; }
+  const req = ++rangeReq;
+  if (!r || !r.code) {
+    $('mapSelected').innerHTML = r
+      ? `<div class="map-title">${escHtml(r.label)}</div><div class="map-hint">Neither this class nor its parents have a Natura 2000 code, so there is no range to show.</div>`
+      : '<div class="map-hint">Pick a class in the hierarchy or a node in the graph to see where its Natura 2000 habitat occurs in Denmark.</div>';
+    if (!r) { $('lyrSites').checked = true; sitesLayer.addTo(map); map.fitBounds(DK_VIEW); }
+    return;
+  }
+  const where = codeWhere(r.code);
+  // the protected-sites layer would hide the range; it can be switched back on
+  $('lyrSites').checked = false; map.removeLayer(sitesLayer);
+  rangeLayer = new ArcGisExportLayer(`${ART17}/export`, {
+    opacity: 0.8, attribution: 'Article 17 report 2019–2024 &copy; EEA',
+    params: { layers: `show:${ART17_HABITATS}`, layerDefs: JSON.stringify({ [ART17_HABITATS]: where }) },
+  }).addTo(map);
+  map.fitBounds(DK_VIEW);
+  renderRangeCard(r, null);
+  let rows;
+  try {
+    const p = new URLSearchParams({ where, outFields: `${P}.habitat_code,${P}.region,${P}.assessment_status_label,${P}.Area_km2`,
+      returnGeometry: false, orderByFields: `${P}.habitat_code,${P}.region`, f: 'json' });
+    rows = ((await (await fetch(`${ART17}/${ART17_HABITATS}/query?${p}`)).json()).features || []).map((f) => ({
+      code: f.attributes[`${P}.habitat_code`], region: f.attributes[`${P}.region`],
+      status: f.attributes[`${P}.assessment_status_label`], area: f.attributes[`${P}.Area_km2`] }));
+  } catch { rows = undefined; }
+  if (req === rangeReq) renderRangeCard(r, rows);
+}
+
+function renderRangeCard(r, rows) {
+  const group = r.code.endsWith('00');
+  const color = (s) => (STATUS.find(([, l]) => l === s) || ['#747678'])[0];
+  let body;
+  if (rows === null) body = '<div class="map-hint">Loading the Danish Article 17 assessment…</div>';
+  else if (rows === undefined) body = '<div class="map-note">Could not reach the EEA Article 17 service; the range layer may still draw.</div>';
+  else if (!rows.length) body = `<div class="map-note">Denmark reported no range for ${group ? 'habitat types in this group' : 'this habitat type'} in the 2019–2024 Article 17 report.</div>`;
+  else body = `
+    <label class="map-layer-row"><input type="checkbox" checked id="lyrRange"> Range and condition <span class="count">${rows.length} areas</span></label>
+    <div class="status-list">${rows.slice(0, 40).map((x) => `<span class="sw" style="background:${color(x.status)}"></span>
+      <span>${group ? escHtml(x.code) + ' · ' : ''}${escHtml(REGIONS[x.region] || x.region)}: ${escHtml(x.status || 'Not reported')}</span>
+      <span class="num">${x.area != null ? Math.round(x.area).toLocaleString() + ' km²' : ''}</span>`).join('')}</div>
+    ${rows.length > 40 ? `<div class="map-note">and ${rows.length - 40} more.</div>` : ''}
+    <div class="map-legend">${STATUS.map(([c, l]) => `<span class="sw" style="background:${c}"></span><span>${l}</span>`).join('')}</div>
+    <div class="map-note">Range and conservation status reported by Denmark per biogeographic region (Article 17, 2019–2024, EEA).</div>`;
+  $('mapSelected').innerHTML = `<div class="map-title">${escHtml(r.label)}</div>
+    <div class="map-sub">${group ? 'Natura 2000 group ' : 'Habitat type '}${escHtml(r.code)}${r.via ? ' · from parent class ' + escHtml(r.via) : ''}</div>${body}`;
+  $('lyrRange')?.addEventListener('change', (e) => { if (rangeLayer) e.target.checked ? rangeLayer.addTo(map) : map.removeLayer(rangeLayer); });
+}
+
+// ─── Layout: panes and splitter (as in the Natura 2000 viewer) ──────────────
+function setPane(mode) {
+  pane = mode;
+  document.querySelectorAll('.pane-toggle-btn').forEach((b) => b.classList.toggle('active', b.dataset.pane === mode));
+  $('splitContainer').className = 'split-container mode-' + mode;
+  requestAnimationFrame(() => {
+    map.invalidateSize();
+    if (mode !== 'overview' && !mapFitted) { map.fitBounds(DK_VIEW); mapFitted = true; }
+    if (graphDirty) drawGraph();
+    else if (cy) { cy.resize(); cy.fit(undefined, 30); }
+  });
+}
+document.querySelectorAll('.pane-toggle-btn').forEach((b) => b.addEventListener('click', () => setPane(b.dataset.pane)));
+
+(function initSplitter() {
+  const splitter = $('splitter'), container = $('splitContainer'), mapPane = $('mapPane'), graphPane = $('graphPane');
+  let dragging = false;
+  splitter.addEventListener('pointerdown', (e) => { dragging = true; splitter.classList.add('dragging'); splitter.setPointerCapture(e.pointerId); });
+  splitter.addEventListener('pointermove', (e) => {
+    if (!dragging) return;
+    const box = container.getBoundingClientRect();
+    const share = Math.min(0.85, Math.max(0.15, (e.clientY - box.top) / box.height));
+    mapPane.style.flex = `1 1 ${share * 100}%`;
+    graphPane.style.flex = `1 1 ${(1 - share) * 100}%`;
+    map.invalidateSize();
+    if (cy) cy.resize();
+  });
+  const stop = () => { if (dragging) { dragging = false; splitter.classList.remove('dragging'); } };
+  splitter.addEventListener('pointerup', stop);
+  splitter.addEventListener('pointercancel', stop);
+})();
+</script>
+</body>
+</html>
