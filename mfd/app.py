@@ -20,7 +20,9 @@ from mfd.reviews import ReviewError, ReviewStore, export_csv, export_sssom, pred
 
 logger = logging.getLogger("mfd.app")
 
-DATA_DIR = Path(os.environ.get("DATA_DIR", "data"))
+# MFD_DATA_DIR lets the Natura 2000 viewer host this one with its own data folder;
+# the files (and reviews) are always under <data dir>/mfd/.
+DATA_DIR = Path(os.environ.get("MFD_DATA_DIR") or os.environ.get("DATA_DIR", "data"))
 # The Natura 2000 linker's output; read-only here.
 LINKER_DIR = Path(os.environ.get("LINKER_DIR", "data"))
 # Reviews live next to the viewer's data unless pointed elsewhere.
@@ -88,12 +90,23 @@ def reviews_sssom():
                     headers={"Content-Disposition": "attachment; filename=mfd-match-reviews.sssom.tsv"})
 
 
+def prepare(strict: bool = True) -> None:
+    """Build the ontology and graph JSON. Both steps are cheap, so they run on every
+    start: a new ontology pin or a new linker run is picked up by a restart.
+    Reviews are never touched. With strict=False a failure (no network for the
+    first download, say) is logged instead of stopping the server that hosts us."""
+    try:
+        build.build(DATA_DIR)
+        build.write_graph(DATA_DIR, LINKER_DIR)
+    except Exception:
+        if strict:
+            raise
+        logger.exception("Could not build the MFD viewer's data; /mfd/ will show it as missing")
+
+
 def main():
     logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(name)s: %(message)s")
-    # Both steps are cheap, so they run on every start: a new ontology pin or a
-    # new linker run is picked up by a restart. Reviews are never touched.
-    build.build(DATA_DIR)
-    build.write_graph(DATA_DIR, LINKER_DIR)
+    prepare()
     port = int(os.environ.get("MFD_PORT", 8095))
     logger.info("MFD viewer on port %d, data dir %s, reviews in %s", port, DATA_DIR, REVIEWS_FILE)
     app.run(host="0.0.0.0", port=port, threaded=True)

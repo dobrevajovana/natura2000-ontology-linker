@@ -1,5 +1,9 @@
-# Microflora Danica (MFD) habitat ontology viewer.
-# Kept separate from docker-compose.yml, like the geo app.
+# Microflora Danica (MFD) habitat ontology viewer, on its own.
+#
+# The usual way to run it is inside the Natura 2000 viewer, at
+# http://localhost:8080/mfd/ (docker compose --profile viz up). This file runs it
+# standalone on port 8095 instead. Both use the same mfd_data volume and so the
+# same reviews.jsonl: run one or the other, not both at once.
 #
 #   docker compose -f docker-compose.mfd.yml up -d --build
 #   -> http://localhost:8095

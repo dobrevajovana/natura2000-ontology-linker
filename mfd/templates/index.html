@@ -223,6 +223,7 @@
 <header class="topbar">
   <h1>MFD Habitat Ontology</h1>
   <div class="topbar-actions">
+    <a id="backLink" href="../" hidden>← Natura 2000 viewer</a>
     <span id="loadStatus" class="load-status">Loading…</span>
     <a id="srcLink" href="https://github.com/cmc-aau/mfd_metadata" target="_blank" rel="noopener">Source: cmc-aau/mfd_metadata</a>
   </div>
@@ -378,6 +379,9 @@ function sourceOf(kind) {
 }
 const MATCH_CLASS = { exactMatch: 'type-exact', closeMatch: 'type-close', broadMatch: 'type-broad', narrowMatch: 'type-narrow', relatedMatch: 'type-related' };
 const shortMatch = (m) => (m || '').replace('skos:', '');
+
+// Served under the Natura 2000 viewer (at /mfd/): offer the way back.
+if (/\/mfd\/?$/.test(location.pathname)) $('backLink').hidden = false;
 
 // ─── State ───────────────────────────────────────────────────────────────────
 let nodes = [], byId = {}, kids = {};

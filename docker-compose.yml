@@ -19,6 +19,9 @@ services:
       dockerfile: Dockerfile.viz
     volumes:
       - natura2000_data:/data
+      # The MFD viewer at /mfd/: its data and the experts' reviews (mfd/reviews.jsonl).
+      # Same layout as docker-compose.mfd.yml, so either can run on the same volume.
+      - mfd_data:/mfd_data
     env_file:
       - path: .env          # optional: copy .env.example to .env to change settings
         required: false
@@ -26,8 +29,10 @@ services:
       - "${VIZ_PORT:-8080}:8080"
     environment:
       - DATA_DIR=/data
+      - MFD_DATA_DIR=/mfd_data
     profiles:
       - viz
 
 volumes:
   natura2000_data:
+  mfd_data:

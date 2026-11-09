@@ -272,7 +272,7 @@ Mappings with `"review": true` are candidates for expert curation, not settled l
 
 ## Visualization
 
-The web app at http://localhost:8080 provides an interactive view of the linked ontology.
+The web app at http://localhost:8080 (with the MFD habitat ontology viewer at http://localhost:8080/mfd/) provides an interactive view of the linked ontology.
 
 **Graph view:**
 - Force-directed layout showing Natura 2000 terms as larger colored nodes
@@ -309,6 +309,8 @@ from cmc-aau/mfd_metadata (GPL-3.0), pinned to one commit in `mfd/build.py`, and
 - **Split / Map full / Graph full**, with a draggable splitter, and a detail panel with the class's crosswalk and linked terms.
 
 ```bash
+docker compose --profile viz up -d --build    # -> http://localhost:8080/mfd/ (inside the Natura 2000 viewer)
+# or on its own, on port 8095 (same data volume; run one or the other, not both)
 docker compose -f docker-compose.mfd.yml up -d --build    # -> http://localhost:8095
 # or locally
 pip install -r requirements.mfd.txt
@@ -324,7 +326,7 @@ The viewer is also where domain experts validate the **predicted** matches: the 
 - **Next to review** opens the next open match: the ones the linker flagged for review first, then the least confident.
 - The graph colours reviewed matches (green correct, red dashed incorrect, amber unsure, orange where reviewers disagree), and **Show predicted matches** filters by review state. Progress is on the left and on the Overview tab.
 
-**Storage.** Decisions are appended to `reviews.jsonl` in the viewer's data folder (`/data/mfd/reviews.jsonl` in the `mfd_data` Docker volume; set `MFD_REVIEWS_FILE` to put it elsewhere). Nothing is overwritten: each line is one decision with reviewer, time, verdict, match type, comment and what was predicted, so the full history is kept. A match's state is each reviewer's latest decision; if they differ it is marked as disputed. Rebuilding the image or restarting keeps the file; removing the volume deletes it, so export regularly:
+**Storage.** Decisions are appended to `reviews.jsonl` in the viewer's data folder (`mfd/reviews.jsonl` in the `mfd_data` Docker volume, the same file whether the viewer runs at `:8080/mfd/` or on `:8095`; set `MFD_REVIEWS_FILE` to put it elsewhere). Nothing is overwritten: each line is one decision with reviewer, time, verdict, match type, comment and what was predicted, so the full history is kept. A match's state is each reviewer's latest decision; if they differ it is marked as disputed. Rebuilding the image or restarting keeps the file; removing the volume deletes it, so export regularly:
 
 - `GET /api/reviews/export.csv`: every predicted match with its review state (for a spreadsheet).
 - `GET /api/reviews/export.sssom.tsv`: reviewed matches as SSSOM, `mapping_justification` `semapv:ManualMappingCuration`, reviewers in `author_label`, incorrect matches with `predicate_modifier` `Not`; unsure ones are left out.

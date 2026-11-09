@@ -235,3 +235,36 @@ def test_review_api(tmp_path, monkeypatch):
     csv_resp = client.get("/api/reviews/export.csv")
     assert csv_resp.mimetype == "text/csv" and "attachment" in csv_resp.headers["Content-Disposition"]
     assert "semapv:ManualMappingCuration" in client.get("/api/reviews/export.sssom.tsv").get_data(as_text=True)
+
+
+def test_main_viewer_serves_the_mfd_viewer_under_mfd(tmp_path, monkeypatch):
+    import importlib.util
+    from pathlib import Path
+
+    (tmp_path / "mfd").mkdir()
+    (tmp_path / "mfd" / "ontology.json").write_text(json.dumps({"meta": {}, "nodes": build.build_ontology(ONTO)}))
+    (tmp_path / "terms.json").write_text(json.dumps(TERMS))
+    (tmp_path / "mappings.json").write_text(json.dumps(MAPPINGS))
+    build.write_graph(tmp_path, tmp_path)
+
+    from mfd import app as mfd_app
+    monkeypatch.setattr(mfd_app, "DATA_DIR", tmp_path)
+    monkeypatch.setattr(mfd_app, "REVIEWS_FILE", tmp_path / "mfd" / "reviews.jsonl")
+    monkeypatch.setenv("DATA_DIR", str(tmp_path))
+    path = Path(__file__).resolve().parent.parent / "viz" / "app.py"
+    spec = importlib.util.spec_from_file_location("viz_app_with_mfd", path)
+    viz = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(viz)
+    viz.app.root_path = str(path.parent)  # loaded under a test name, so tell Flask where its templates are
+    client = viz.app.test_client()
+
+    assert client.get("/").status_code == 200                      # the Natura 2000 viewer
+    assert b'href="mfd/"' in client.get("/").data                  # links to the MFD viewer
+    assert client.get("/mfd").headers["Location"].endswith("/mfd/")
+    page = client.get("/mfd/")
+    assert page.status_code == 200 and b"MFD Habitat Ontology" in page.data
+    assert len(client.get("/mfd/data/ontology.json").get_json()["nodes"]) == 8
+    ok = client.post("/mfd/api/reviews", json={"key": KEY_WIKI, "verdict": "correct", "reviewer": "Ana"})
+    assert ok.status_code == 200
+    assert (tmp_path / "mfd" / "reviews.jsonl").exists()
+    assert client.get("/api/stats").status_code == 200              # the main viewer's own API is untouched
