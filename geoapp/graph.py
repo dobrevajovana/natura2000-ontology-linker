@@ -31,6 +31,8 @@ _GS_NS = f"{_BASE}ns#"
 _SKOS_PREDICATES = {
     "exactMatch": "http://www.w3.org/2004/02/skos/core#exactMatch",
     "closeMatch": "http://www.w3.org/2004/02/skos/core#closeMatch",
+    "broadMatch": "http://www.w3.org/2004/02/skos/core#broadMatch",
+    "narrowMatch": "http://www.w3.org/2004/02/skos/core#narrowMatch",
     "relatedMatch": "http://www.w3.org/2004/02/skos/core#relatedMatch",
 }
 
@@ -465,7 +467,7 @@ if __name__ == "__main__":
                              source="NCBITaxon", label="Escherichia coli", origin="biosamples"),
                 OntologyTerm(uri="http://purl.obolibrary.org/obo/UBERON_0002097", curie="UBERON:0002097",
                              source="UBERON", label="skin epidermis", origin="ols4",
-                             match_type="relatedMatch", confidence=0.65,
+                             match_type="narrowMatch", confidence=0.85,
                              matched_value="skin", matched_field="tissue"),
             ],
             archives=[ArchiveRef(source="ena", accession="ERS0002", url="https://example.org/ERS0002")],

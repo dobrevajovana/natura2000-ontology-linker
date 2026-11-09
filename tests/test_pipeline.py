@@ -119,9 +119,17 @@ def test_homonyms_are_flagged_not_trusted(monkeypatch):
 # --- vector matching ---------------------------------------------------------
 
 @pytest.mark.parametrize("score, expected", [
-    (0.9, "skos:exactMatch"), (0.75, "skos:closeMatch"), (0.6, "skos:relatedMatch"), (0.3, None)])
+    (0.99, "skos:closeMatch"), (0.75, "skos:closeMatch"), (0.6, "skos:relatedMatch"), (0.3, None)])
 def test_score_to_match_type(score, expected):
-    assert score_to_match_type(score, {"exact": 0.85, "close": 0.70, "related": 0.55}) == expected
+    # similarity alone is never enough for exactMatch
+    assert score_to_match_type(score, {"close": 0.70, "related": 0.55}) == expected
+
+
+def test_vector_agreement_keeps_a_direct_exact_match():
+    direct = [{"source_id": "h", "target_uri": "e", "match_type": "skos:exactMatch", "confidence": 1.0}]
+    vector = [{"source_id": "h", "target_uri": "e", "match_type": "skos:closeMatch", "confidence": 0.9}]
+    [m] = merge_mappings(direct, vector)
+    assert m["match_type"] == "skos:exactMatch"
 
 
 def test_vector_agreement_confirms_a_review_candidate():

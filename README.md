@@ -43,7 +43,8 @@ Built for the AAU Bio Collaboration team to enable semantic interoperability bet
   • SentenceTransformers (all-MiniLM-L6-v2 or SapBERT)
   • FAISS inner-product index (cosine similarity on normalized vecs)
   • Top-5 nearest neighbours per term per ontology
-  • Configurable thresholds → exactMatch / closeMatch / relatedMatch
+  • Configurable thresholds → closeMatch / relatedMatch
+    (similarity alone never makes an exactMatch)
   • Merges with direct mappings, deduplicates
         |
         v  data/mappings.json  data/mappings.ttl
@@ -121,8 +122,7 @@ All settings are in `.env`:
 
 | Variable | Default | Description |
 |---|---|---|
-| `SIMILARITY_EXACT` | `0.85` | Cosine similarity threshold for `skos:exactMatch` |
-| `SIMILARITY_CLOSE` | `0.70` | Threshold for `skos:closeMatch` |
+| `SIMILARITY_CLOSE` | `0.70` | Cosine similarity threshold for `skos:closeMatch`, the highest a vector match can reach; `exactMatch` needs a shared ID or an exact label from the direct linker |
 | `SIMILARITY_RELATED` | `0.55` | Threshold for `skos:relatedMatch` |
 | `EMBEDDING_MODEL` | `all-MiniLM-L6-v2` | SentenceTransformers model |
 | `API_RATE_LIMIT` | `1.0` | Seconds between calls to Wikidata, DBpedia and OLS4 |

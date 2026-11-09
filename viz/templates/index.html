@@ -4,617 +4,572 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Natura 2000 Ontology Linker</title>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/cytoscape/3.28.1/cytoscape.min.js"></script>
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/cytoscape/3.28.1/cytoscape.min.js"></script>
 <style>
-  * { box-sizing: border-box; margin: 0; padding: 0; }
-  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #1a2332; color: #e0e6f0; height: 100vh; display: flex; flex-direction: column; }
+  /* Same look as the BioSample explorer (geoapp): light and dark from the system setting. */
+  :root {
+    --bg: #f5f6f8; --panel-bg: #ffffff; --border: #d9dce1; --text: #1b1e23; --text-muted: #5b6270;
+    --accent: #1565c0; --accent-contrast: #ffffff; --danger: #c62828; --ok: #2e7d32;
+    --input-bg: #ffffff; --shadow: 0 1px 3px rgba(0, 0, 0, 0.12); --card-bg: rgba(255, 255, 255, 0.95);
+    --chip-bg: #eef1f5;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #14161a; --panel-bg: #1c1f24; --border: #33383f; --text: #e7e9ec; --text-muted: #9aa1ab;
+      --accent: #5c9cea; --accent-contrast: #0d1117; --danger: #ef5350; --ok: #66bb6a;
+      --input-bg: #22262c; --shadow: 0 1px 3px rgba(0, 0, 0, 0.5); --card-bg: rgba(28, 31, 36, 0.95);
+      --chip-bg: #262a31;
+    }
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; height: 100%; background: var(--bg); color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; font-size: 14px; }
+  button, input, select { font: inherit; color: inherit; }
+  [hidden] { display: none !important; }
 
-  /* Header */
-  header { background: #0d1b2a; padding: 12px 20px; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid #2d4a6e; flex-shrink: 0; }
-  header h1 { font-size: 1.2rem; font-weight: 600; color: #7ecff5; letter-spacing: 0.5px; }
-  header .subtitle { font-size: 0.75rem; color: #6b8cac; margin-top: 2px; }
-  .header-controls { display: flex; gap: 10px; align-items: center; }
-  .btn { padding: 6px 14px; border: none; border-radius: 5px; cursor: pointer; font-size: 0.8rem; font-weight: 500; transition: background 0.15s; }
-  .btn-primary { background: #1e6fb5; color: #fff; }
-  .btn-primary:hover { background: #2580cc; }
-  .btn-secondary { background: #2d4a6e; color: #c0d4e8; }
-  .btn-secondary:hover { background: #3a5f8a; }
+  .topbar { display: flex; align-items: center; justify-content: space-between; padding: 10px 16px;
+    background: var(--panel-bg); border-bottom: 1px solid var(--border); }
+  .topbar h1 { font-size: 16px; margin: 0; }
+  .topbar-actions { display: flex; align-items: center; gap: 10px; }
+  .load-status { font-size: 12px; color: var(--text-muted); }
 
-  /* Main layout */
-  .main { display: grid; grid-template-columns: 260px 1fr 300px; flex: 1; overflow: hidden; }
-
-  /* Sidebar */
-  .sidebar { background: #0d1b2a; padding: 14px; overflow-y: auto; border-right: 1px solid #2d4a6e; display: flex; flex-direction: column; gap: 16px; }
-  .sidebar-section { background: #162030; border-radius: 8px; padding: 12px; }
-  .sidebar-section h3 { font-size: 0.72rem; text-transform: uppercase; letter-spacing: 1px; color: #5a8ab0; margin-bottom: 10px; }
-  input[type="text"] { width: 100%; padding: 7px 10px; background: #0d1b2a; border: 1px solid #2d4a6e; border-radius: 5px; color: #c0d4e8; font-size: 0.82rem; outline: none; }
-  input[type="text"]:focus { border-color: #1e6fb5; }
-
-  .checkbox-group { display: flex; flex-direction: column; gap: 7px; }
-  .checkbox-item { display: flex; align-items: center; gap: 8px; cursor: pointer; font-size: 0.82rem; color: #b0c4d8; }
-  .checkbox-item input { width: 14px; height: 14px; cursor: pointer; accent-color: #1e6fb5; }
-  .color-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
-
-  .slider-container { display: flex; flex-direction: column; gap: 6px; }
-  .slider-label { display: flex; justify-content: space-between; font-size: 0.78rem; color: #8aa8c4; }
-  input[type="range"] { width: 100%; accent-color: #1e6fb5; }
-
-  .stat-item { display: flex; justify-content: space-between; align-items: center; font-size: 0.78rem; padding: 4px 0; border-bottom: 1px solid #1e3050; }
-  .stat-item:last-child { border-bottom: none; }
-  .stat-label { color: #8aa8c4; }
-  .stat-value { font-weight: 600; color: #7ecff5; }
-
-  /* Legend */
-  .legend-items { display: flex; flex-direction: column; gap: 5px; }
-  .legend-item { display: flex; align-items: center; gap: 8px; font-size: 0.75rem; color: #8aa8c4; }
+  .layout { display: flex; height: calc(100vh - 42px); min-height: 500px; }
+  .panel-controls { width: 300px; min-width: 240px; max-width: 380px; overflow-y: auto; background: var(--panel-bg);
+    border-right: 1px solid var(--border); padding: 12px; flex-shrink: 0; }
+  .control-group { margin-bottom: 14px; padding-bottom: 14px; border-bottom: 1px solid var(--border); }
+  .control-group:last-child { border-bottom: none; }
+  .control-group > label, .control-group h3 { display: block; font-weight: 600; margin: 0 0 6px 0; font-size: 12.5px;
+    color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.02em; }
+  input[type="search"], input[type="text"], select { width: 100%; padding: 6px 8px; border: 1px solid var(--border);
+    border-radius: 6px; background: var(--input-bg); color: var(--text); }
+  input[type="range"] { width: 100%; }
+  .check-list { display: flex; flex-direction: column; gap: 4px; }
+  .check-list label { display: flex; align-items: center; gap: 6px; font-size: 13px; cursor: pointer; }
+  .check-swatch { display: inline-block; width: 10px; height: 10px; border-radius: 2px; flex-shrink: 0; }
+  .muted { color: var(--text-muted); font-size: 12px; }
+  .btn { padding: 6px 12px; border: 1px solid var(--border); border-radius: 6px; background: var(--panel-bg); cursor: pointer; }
+  .btn:hover { border-color: var(--accent); }
+  .btn:disabled { opacity: 0.55; cursor: default; }
+  .btn-primary { background: var(--accent); color: var(--accent-contrast); border-color: var(--accent); }
+  .btn-ghost { background: transparent; border-color: transparent; }
+  .btn-small { padding: 2px 8px; font-size: 12px; }
+  .btn-row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+  .stats-list { display: grid; gap: 4px; margin: 0; }
+  .stats-list > div { display: flex; justify-content: space-between; font-size: 13px; }
+  .stats-list dt { color: var(--text-muted); }
+  .stats-list dd { margin: 0; font-weight: 600; font-variant-numeric: tabular-nums; }
+  .legend-block { display: flex; flex-direction: column; gap: 4px; font-size: 12.5px; }
+  .legend-row { display: flex; align-items: center; gap: 6px; }
   .legend-node { width: 12px; height: 12px; border-radius: 50%; flex-shrink: 0; }
-  .legend-edge { width: 20px; height: 3px; flex-shrink: 0; border-radius: 2px; }
+  .legend-edge { width: 22px; height: 0; border-top: 2px solid var(--text-muted); flex-shrink: 0; }
 
-  /* Center graph/table */
-  .center { position: relative; overflow: hidden; background: #111c2b; }
-  #cy { width: 100%; height: 100%; }
-  .table-view { display: none; overflow: auto; padding: 16px; height: 100%; }
-  .data-table { width: 100%; border-collapse: collapse; font-size: 0.8rem; }
-  .data-table th { background: #162030; padding: 8px 12px; text-align: left; color: #7ecff5; font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.5px; cursor: pointer; white-space: nowrap; user-select: none; border-bottom: 2px solid #2d4a6e; }
-  .data-table th:hover { background: #1e3050; }
-  .data-table td { padding: 7px 12px; border-bottom: 1px solid #1a2d42; color: #c0d4e8; vertical-align: top; }
-  .data-table tr:hover td { background: #162030; cursor: pointer; }
-  .badge { display: inline-block; padding: 2px 7px; border-radius: 10px; font-size: 0.68rem; font-weight: 600; white-space: nowrap; }
-  .badge-habitat { background: #1a4a7a; color: #7ecff5; }
-  .badge-species { background: #4a1a5e; color: #c97de8; }
-  .badge-region { background: #4a3200; color: #f5b942; }
-  .badge-status { background: #4a1a1a; color: #f57a7a; }
+  /* Ontology manager */
+  .ont-form { display: flex; flex-direction: column; gap: 8px; }
+  .ont-form .row { display: flex; gap: 10px; font-size: 13px; }
+  .ont-form .row label { display: flex; align-items: center; gap: 5px; cursor: pointer; }
+  .suggest-wrap { position: relative; }
+  .suggest-list { position: absolute; left: 0; right: 0; top: calc(100% + 2px); z-index: 1100; margin: 0; padding: 4px 0; list-style: none;
+    max-height: 300px; overflow-y: auto; background: var(--panel-bg); border: 1px solid var(--border); border-radius: 6px; box-shadow: var(--shadow); }
+  .suggest-list li { padding: 5px 9px; cursor: pointer; display: grid; grid-template-columns: 1fr auto; gap: 0 8px; font-size: 13px; }
+  .suggest-list li[aria-selected="true"], .suggest-list li:hover { background: var(--chip-bg); }
+  .suggest-list .sg-id { font-weight: 600; }
+  .suggest-list .sg-id mark, .suggest-list .sg-title mark { background: none; color: var(--accent); }
+  .suggest-list .sg-terms { color: var(--text-muted); font-size: 11.5px; font-variant-numeric: tabular-nums; align-self: center; }
+  .suggest-list .sg-title { grid-column: 1 / 3; color: var(--text-muted); font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .suggest-list .sg-head { padding: 4px 9px 2px; font-size: 11px; text-transform: uppercase; letter-spacing: 0.02em; color: var(--text-muted); cursor: default; display: block; }
+  .suggest-list .sg-added { color: var(--ok); font-size: 11px; }
+  .progress { height: 6px; border-radius: 3px; background: var(--chip-bg); overflow: hidden; }
+  .progress > span { display: block; height: 100%; width: 0; background: var(--accent); transition: width 0.3s; }
+  .ont-status { font-size: 12px; color: var(--text-muted); line-height: 1.45; }
+  .ont-status.error { color: var(--danger); }
+  .ont-list { display: flex; flex-direction: column; gap: 6px; margin-top: 10px; }
+  .ont-item { display: grid; grid-template-columns: 10px 1fr auto; gap: 4px 8px; align-items: center; font-size: 13px;
+    padding: 6px 8px; border: 1px solid var(--border); border-radius: 6px; }
+  .ont-item .meta { grid-column: 2 / 4; font-size: 11.5px; color: var(--text-muted); }
+  .ont-item .actions { display: flex; gap: 4px; }
 
-  /* Detail panel */
-  .detail-panel { background: #0d1b2a; border-left: 1px solid #2d4a6e; overflow-y: auto; padding: 16px; }
-  .detail-empty { display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%; color: #3a5a7a; text-align: center; gap: 10px; }
-  .detail-empty svg { opacity: 0.3; }
-  .detail-term-title { font-size: 1rem; font-weight: 600; color: #e0ecf8; margin-bottom: 8px; line-height: 1.4; }
-  .detail-meta { font-size: 0.78rem; color: #6b8cac; margin-bottom: 14px; }
-  .detail-field { margin-bottom: 12px; }
-  .detail-field label { display: block; font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.8px; color: #5a8ab0; margin-bottom: 4px; }
-  .detail-field p { font-size: 0.82rem; color: #b0c8e0; line-height: 1.5; }
-  .detail-field a { color: #5ab0e8; text-decoration: none; word-break: break-all; }
-  .detail-field a:hover { text-decoration: underline; }
-  .mappings-list { display: flex; flex-direction: column; gap: 8px; margin-top: 6px; }
-  .mapping-card { background: #162030; border-radius: 6px; padding: 10px; border-left: 3px solid; }
-  .mapping-card.wikidata { border-left-color: #3498db; }
-  .mapping-card.dbpedia { border-left-color: #e67e22; }
-  .mapping-card.ols4 { border-left-color: #27ae60; }
-  .mapping-card.gbif { border-left-color: #9b59b6; }
-  .mapping-card.eunis { border-left-color: #c0a03a; }
-  .mapping-card .mapping-label { font-size: 0.82rem; color: #c0d8f0; font-weight: 500; margin-bottom: 4px; }
-  .mapping-card .mapping-meta { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
-  .mapping-card .mapping-uri { font-size: 0.7rem; color: #5ab0e8; text-decoration: none; word-break: break-all; display: block; margin-top: 4px; }
-  .mapping-card .mapping-uri:hover { text-decoration: underline; }
-  .conf-badge { font-size: 0.68rem; padding: 1px 6px; border-radius: 8px; background: #1e3050; color: #7ecff5; }
-  .type-badge { font-size: 0.65rem; padding: 1px 6px; border-radius: 8px; }
-  .type-exact { background: #1a4a1a; color: #6ae86a; }
-  .type-close { background: #3a3a00; color: #e8d86a; }
-  .type-related { background: #3a1a00; color: #e8a86a; }
-
-  /* View tabs */
-  .view-tabs { display: flex; background: #162030; border-radius: 6px; padding: 3px; gap: 2px; }
-  .view-tab { padding: 5px 14px; border: none; border-radius: 4px; background: transparent; color: #8aa8c4; cursor: pointer; font-size: 0.8rem; font-weight: 500; }
-  .view-tab:hover { color: #c0d4e8; }
-  .view-tab.active { background: #1e6fb5; color: #fff; }
-
-  /* Map view */
-  .map-view { display: none; position: relative; height: 100%; }
-  #map { width: 100%; height: 100%; background: #0b1420; }
-  .map-card { position: absolute; top: 12px; left: 12px; z-index: 500; width: 300px; max-height: calc(100% - 24px); overflow-y: auto;
-              background: rgba(13, 27, 42, 0.94); border: 1px solid #2d4a6e; border-radius: 8px; padding: 12px; font-size: 0.8rem; color: #b0c8e0; }
-  .map-card h3 { font-size: 0.72rem; text-transform: uppercase; letter-spacing: 1px; color: #5a8ab0; margin-bottom: 8px; }
-  .map-card .map-title { font-size: 0.95rem; font-weight: 600; color: #e0ecf8; margin: 10px 0 2px; line-height: 1.35; }
-  .map-card .map-sub { color: #6b8cac; font-size: 0.75rem; margin-bottom: 8px; }
-  .map-card .map-hint { color: #6b8cac; font-size: 0.78rem; line-height: 1.5; margin-top: 8px; }
-  .map-results { margin-top: 6px; display: flex; flex-direction: column; gap: 2px; }
-  .map-result { padding: 5px 7px; border-radius: 4px; cursor: pointer; color: #c0d4e8; display: flex; gap: 6px; align-items: center; }
-  .map-result:hover { background: #1e3050; }
-  .map-layer-row { display: flex; align-items: center; gap: 8px; padding: 4px 0; cursor: pointer; }
-  .map-layer-row input { accent-color: #1e6fb5; }
-  .map-layer-row .count { margin-left: auto; color: #7ecff5; font-weight: 600; font-size: 0.75rem; }
-  .map-legend { display: grid; grid-template-columns: 12px 1fr; gap: 4px 8px; align-items: center; margin-top: 8px; font-size: 0.74rem; color: #8aa8c4; }
-  .map-legend span.sw { width: 12px; height: 12px; border-radius: 2px; }
-  .map-note { font-size: 0.72rem; color: #6b8cac; margin-top: 8px; line-height: 1.5; }
-  .map-section { border-top: 1px solid #1e3050; margin-top: 10px; padding-top: 10px; }
-  .btn-map { margin-top: 10px; width: 100%; }
-  .leaflet-popup-content { font-size: 0.78rem; line-height: 1.45; }
-
-  /* Loading / error overlay */
-  .overlay { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; background: rgba(17, 28, 43, 0.9); z-index: 100; gap: 12px; }
-  .overlay.hidden { display: none; }
-  .spinner { width: 36px; height: 36px; border: 3px solid #2d4a6e; border-top-color: #1e6fb5; border-radius: 50%; animation: spin 0.8s linear infinite; }
+  /* Main area */
+  .panel-main { flex: 1; display: flex; flex-direction: column; min-width: 0; }
+  .pane-toggle { display: flex; gap: 6px; padding: 6px 10px; background: var(--panel-bg); border-bottom: 1px solid var(--border); align-items: center; }
+  .pane-toggle-btn { padding: 4px 10px; border: 1px solid var(--border); border-radius: 6px; background: var(--panel-bg); cursor: pointer; font-size: 12.5px; }
+  .pane-toggle-btn.active { background: var(--accent); color: var(--accent-contrast); border-color: var(--accent); }
+  .pane-toggle .graph-info { margin-left: auto; font-size: 12px; color: var(--text-muted); }
+  .split-container { flex: 1; display: flex; flex-direction: column; min-height: 0; }
+  .pane { position: relative; min-height: 60px; overflow: hidden; }
+  .pane-map { flex: 1 1 50%; }
+  .pane-graph { flex: 1 1 50%; border-top: 1px solid var(--border); }
+  .pane-table { flex: 1 1 100%; overflow: auto; display: none; }
+  .split-container.mode-map .pane-map { flex: 1 1 100%; }
+  .split-container.mode-map .pane-graph, .split-container.mode-map .splitter { display: none; }
+  .split-container.mode-graph .pane-graph { flex: 1 1 100%; border-top: none; }
+  .split-container.mode-graph .pane-map, .split-container.mode-graph .splitter { display: none; }
+  .split-container.mode-table .pane-table { display: block; }
+  .split-container.mode-table .pane-map, .split-container.mode-table .pane-graph, .split-container.mode-table .splitter { display: none; }
+  .splitter { height: 6px; background: var(--border); cursor: row-resize; flex-shrink: 0; }
+  .splitter:hover, .splitter.dragging { background: var(--accent); }
+  #map, #cy { width: 100%; height: 100%; background: var(--bg); }
+  .pane-overlay { position: absolute; inset: 0; display: flex; flex-direction: column; gap: 8px; align-items: center; justify-content: center;
+    background: var(--bg); color: var(--text-muted); font-size: 13px; z-index: 500; text-align: center; padding: 16px; }
+  .graph-hint { position: absolute; left: 10px; bottom: 10px; z-index: 600; max-width: 340px; padding: 6px 10px; border-radius: 6px;
+    font-size: 12px; line-height: 1.45; color: var(--text-muted); background: var(--card-bg); border: 1px solid var(--border); pointer-events: none; }
+  .pane-overlay.loading { background: transparent; pointer-events: none; }
+  .pane-overlay .error { color: var(--danger); max-width: 380px; line-height: 1.6; }
+  .pane-overlay code { background: var(--chip-bg); padding: 2px 5px; border-radius: 3px; }
+  .spinner { width: 28px; height: 28px; border: 3px solid var(--border); border-top-color: var(--accent); border-radius: 50%; animation: spin 0.8s linear infinite; }
   @keyframes spin { to { transform: rotate(360deg); } }
-  .overlay-msg { font-size: 0.85rem; color: #8aa8c4; text-align: center; max-width: 320px; line-height: 1.6; }
-  .overlay-error { color: #f57a7a; font-size: 0.85rem; text-align: center; max-width: 360px; line-height: 1.6; }
-  .overlay-error code { background: #1a1a2a; padding: 2px 5px; border-radius: 3px; font-size: 0.78rem; }
+  @media (prefers-reduced-motion: reduce) { .spinner { animation: none; } }
 
-  /* Scrollbar */
-  ::-webkit-scrollbar { width: 6px; }
-  ::-webkit-scrollbar-track { background: #0d1b2a; }
-  ::-webkit-scrollbar-thumb { background: #2d4a6e; border-radius: 3px; }
+  /* Map card */
+  .map-card { position: absolute; top: 10px; left: 10px; z-index: 600; width: 290px; max-height: calc(100% - 20px); overflow-y: auto;
+    background: var(--card-bg); border: 1px solid var(--border); border-radius: 8px; padding: 10px 12px; font-size: 13px; box-shadow: var(--shadow); }
+  .map-card h3 { font-size: 12px; text-transform: uppercase; letter-spacing: 0.02em; color: var(--text-muted); margin: 0 0 6px; }
+  .map-card .map-title { font-size: 14px; font-weight: 600; margin: 10px 0 2px; line-height: 1.35; }
+  .map-card .map-sub { color: var(--text-muted); font-size: 12px; margin-bottom: 6px; }
+  .map-hint, .map-note { color: var(--text-muted); font-size: 12px; line-height: 1.5; margin-top: 6px; }
+  .map-results { margin-top: 6px; display: flex; flex-direction: column; gap: 2px; max-height: 280px; overflow-y: auto; }
+  .map-results .map-hint { margin: 0 0 2px; }
+  .map-result { padding: 4px 6px; border-radius: 4px; cursor: pointer; display: flex; gap: 6px; align-items: baseline; line-height: 1.35; }
+  .map-result .check-swatch { align-self: center; }
+  .map-result:hover, .map-result.active { background: var(--chip-bg); }
+  .map-result mark { background: none; color: var(--accent); font-weight: 600; }
+  .map-layer-row { display: flex; align-items: center; gap: 8px; padding: 3px 0; cursor: pointer; }
+  .map-layer-row .count { margin-left: auto; font-weight: 600; font-size: 12px; font-variant-numeric: tabular-nums; }
+  .map-legend { display: grid; grid-template-columns: 12px 1fr; gap: 4px 8px; align-items: center; margin-top: 8px; font-size: 12px; color: var(--text-muted); }
+  .map-legend span.sw { width: 12px; height: 12px; border-radius: 2px; }
+  .map-section { border-top: 1px solid var(--border); margin-top: 10px; padding-top: 10px; }
+  .map-card a, .detail-content a { color: var(--accent); }
+
+  /* Table */
+  .data-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  .data-table th { position: sticky; top: 0; background: var(--panel-bg); padding: 8px 10px; text-align: left; color: var(--text-muted);
+    font-size: 12px; text-transform: uppercase; letter-spacing: 0.02em; white-space: nowrap; border-bottom: 1px solid var(--border); }
+  .data-table th[data-sort] { cursor: pointer; user-select: none; }
+  .data-table th.num, .data-table td.num { text-align: right; font-variant-numeric: tabular-nums; }
+  .data-table td { padding: 6px 10px; border-bottom: 1px solid var(--border); vertical-align: top; }
+  .data-table tbody tr { cursor: pointer; }
+  .data-table tbody tr:hover td { background: var(--chip-bg); }
+
+  /* Badges */
+  .badge { display: inline-block; padding: 1px 7px; border-radius: 10px; font-size: 11px; color: #fff; }
+  .badge-habitat { background: #2E86AB; } .badge-species { background: #A23B72; }
+  .badge-region { background: #b86e00; } .badge-status { background: #C73E1D; }
+  .type-badge { font-size: 11px; padding: 1px 7px; border-radius: 10px; border: 1px solid currentColor; }
+  .type-exact { color: var(--ok); } .type-close { color: #b08800; } .type-broad, .type-narrow { color: var(--accent); }
+  .type-related { color: #c4561a; }
+  @media (prefers-color-scheme: dark) { .type-close { color: #e0c341; } .type-related { color: #f0975a; } }
+  .conf-badge { font-size: 11px; padding: 1px 6px; border-radius: 8px; background: var(--chip-bg); font-variant-numeric: tabular-nums; }
+
+  /* Detail slide-over, as in the explorer */
+  .detail-panel { position: fixed; top: 0; right: 0; width: 360px; max-width: 90vw; height: 100%; background: var(--panel-bg);
+    border-left: 1px solid var(--border); box-shadow: var(--shadow); z-index: 1000; overflow-y: auto; padding: 16px; }
+  .detail-close { position: absolute; top: 8px; right: 8px; font-size: 18px; line-height: 1; padding: 4px 8px; }
+  .detail-content h2 { font-size: 16px; margin: 24px 0 6px 0; line-height: 1.35; }
+  .detail-meta { font-size: 12px; color: var(--text-muted); margin-bottom: 12px; }
+  .detail-field { margin-bottom: 12px; }
+  .detail-field > label { display: block; font-size: 11.5px; text-transform: uppercase; letter-spacing: 0.02em; color: var(--text-muted); margin-bottom: 4px; }
+  .detail-field p { margin: 0; line-height: 1.5; word-break: break-word; }
+  .mappings-list { display: flex; flex-direction: column; gap: 8px; }
+  .mapping-card { border: 1px solid var(--border); border-left: 3px solid var(--card-color, var(--border)); border-radius: 6px; padding: 8px 10px; }
+  .mapping-card .mapping-label { font-weight: 500; margin-bottom: 4px; }
+  .mapping-card .mapping-meta { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; font-size: 12px; color: var(--text-muted); }
+  .mapping-card .mapping-uri { font-size: 11.5px; word-break: break-all; display: block; margin-top: 4px; }
+
+  @media (max-width: 900px) {
+    .layout { flex-direction: column; height: auto; }
+    .panel-controls { width: auto; max-width: none; border-right: none; border-bottom: 1px solid var(--border); }
+    .split-container { min-height: 640px; }
+    .detail-panel { width: 100%; }
+  }
 </style>
 </head>
 <body>
 
-<header>
-  <div>
-    <h1>🌿 Natura 2000 Ontology Linker</h1>
-    <div class="subtitle">Interactive visualization of linked biological ontologies</div>
-  </div>
-  <div class="header-controls">
-    <div class="view-tabs" role="tablist">
-      <button class="view-tab active" data-view="graph">Graph</button>
-      <button class="view-tab" data-view="table">Table</button>
-      <button class="view-tab" data-view="map">Map</button>
-    </div>
-    <button class="btn btn-primary" id="btnRefresh">Reload Data</button>
+<header class="topbar">
+  <h1>Natura 2000 Ontology Linker</h1>
+  <div class="topbar-actions">
+    <span id="loadStatus" class="load-status"></span>
+    <button id="btnRefresh" class="btn btn-ghost" title="Re-read the pipeline's data files">Reload data</button>
   </div>
 </header>
 
-<div class="main">
+<div class="layout">
+  <aside class="panel-controls">
+    <section class="control-group">
+      <label for="searchInput">Search</label>
+      <input type="search" id="searchInput" placeholder="habitat, species name…">
+    </section>
 
-  <!-- Sidebar -->
-  <aside class="sidebar">
-
-    <div class="sidebar-section">
-      <h3>Search</h3>
-      <input type="text" id="searchInput" placeholder="Search terms, species names…">
-    </div>
-
-    <div class="sidebar-section">
+    <section class="control-group">
       <h3>Category</h3>
-      <div class="checkbox-group">
-        <label class="checkbox-item">
-          <input type="checkbox" class="cat-filter" value="habitat" checked>
-          <span class="color-dot" style="background:#2E86AB"></span> Habitat
-        </label>
-        <label class="checkbox-item">
-          <input type="checkbox" class="cat-filter" value="species">
-          <span class="color-dot" style="background:#A23B72"></span> Species <span style="font-size:0.65rem;color:#5a8ab0">(1500+)</span>
-        </label>
-        <label class="checkbox-item">
-          <input type="checkbox" class="cat-filter" value="region" checked>
-          <span class="color-dot" style="background:#F18F01"></span> Region
-        </label>
-        <label class="checkbox-item">
-          <input type="checkbox" class="cat-filter" value="status" checked>
-          <span class="color-dot" style="background:#C73E1D"></span> Status
-        </label>
+      <div class="check-list">
+        <label><input type="checkbox" class="cat-filter" value="habitat" checked><span class="check-swatch" style="background:#2E86AB"></span> Habitat</label>
+        <label><input type="checkbox" class="cat-filter" value="species"><span class="check-swatch" style="background:#A23B72"></span> Species <span class="muted" id="speciesCount"></span></label>
+        <label><input type="checkbox" class="cat-filter" value="region" checked><span class="check-swatch" style="background:#F18F01"></span> Region</label>
+        <label><input type="checkbox" class="cat-filter" value="status" checked><span class="check-swatch" style="background:#C73E1D"></span> Status</label>
       </div>
-    </div>
+    </section>
 
-    <div class="sidebar-section">
-      <h3>Source Ontology</h3>
-      <div class="checkbox-group">
-        <label class="checkbox-item">
-          <input type="checkbox" class="ont-filter" value="wikidata" checked>
-          <span class="color-dot" style="background:#3498db"></span> Wikidata
-        </label>
-        <label class="checkbox-item">
-          <input type="checkbox" class="ont-filter" value="dbpedia" checked>
-          <span class="color-dot" style="background:#e67e22"></span> DBpedia
-        </label>
-        <label class="checkbox-item">
-          <input type="checkbox" class="ont-filter" value="ols4" checked>
-          <span class="color-dot" style="background:#27ae60"></span> OLS4 / ENVO / NCBITaxon
-        </label>
-        <label class="checkbox-item">
-          <input type="checkbox" class="ont-filter" value="gbif" checked>
-          <span class="color-dot" style="background:#9b59b6"></span> GBIF
-        </label>
-        <label class="checkbox-item">
-          <input type="checkbox" class="ont-filter" value="eunis" checked>
-          <span class="color-dot" style="background:#c0a03a"></span> EUNIS
-        </label>
-      </div>
-    </div>
+    <section class="control-group">
+      <h3>Linked to</h3>
+      <div class="check-list" id="ontologyChecks"></div>
+    </section>
 
-    <div class="sidebar-section">
-      <h3>Min Confidence</h3>
-      <div class="slider-container">
-        <div class="slider-label"><span>0.0</span><span id="confValue">0.50</span><span>1.0</span></div>
-        <input type="range" id="confSlider" min="0" max="1" step="0.05" value="0.50">
-      </div>
-    </div>
+    <section class="control-group">
+      <label for="confSlider">Min confidence: <span id="confValue">0.50</span></label>
+      <input type="range" id="confSlider" min="0" max="1" step="0.05" value="0.50">
+    </section>
 
-    <div class="sidebar-section">
-      <h3>Graph Size</h3>
-      <div class="slider-container">
-        <div class="slider-label"><span>50</span><span id="limitValue">500</span><span>2000</span></div>
-        <input type="range" id="limitSlider" min="50" max="2000" step="50" value="500">
-      </div>
-      <div style="font-size:0.7rem;color:#5a8ab0;margin-top:6px" id="graphSizeInfo">Max N2K terms shown. Enable Species for species exploration.</div>
-    </div>
+    <section class="control-group">
+      <label for="limitSlider">Graph size: <span id="limitValue">500</span> terms</label>
+      <input type="range" id="limitSlider" min="50" max="2000" step="50" value="500">
+    </section>
 
-    <div class="sidebar-section">
-      <h3>Statistics</h3>
-      <div id="statsPanel">
-        <div class="stat-item"><span class="stat-label">Total terms</span><span class="stat-value" id="statTotal">—</span></div>
-        <div class="stat-item"><span class="stat-label">Habitats</span><span class="stat-value" id="statHabitats">—</span></div>
-        <div class="stat-item"><span class="stat-label">Species</span><span class="stat-value" id="statSpecies">—</span></div>
-        <div class="stat-item"><span class="stat-label">Total mappings</span><span class="stat-value" id="statMappings">—</span></div>
-        <div class="stat-item"><span class="stat-label">Wikidata</span><span class="stat-value" id="statWikidata">—</span></div>
-        <div class="stat-item"><span class="stat-label">DBpedia</span><span class="stat-value" id="statDbpedia">—</span></div>
-        <div class="stat-item"><span class="stat-label">OLS4</span><span class="stat-value" id="statOls4">—</span></div>
-        <div class="stat-item"><span class="stat-label">GBIF</span><span class="stat-value" id="statGbif">—</span></div>
-        <div class="stat-item"><span class="stat-label">EUNIS</span><span class="stat-value" id="statEunis">—</span></div>
-        <div class="stat-item"><span class="stat-label">Avg confidence</span><span class="stat-value" id="statAvgConf">—</span></div>
-      </div>
-    </div>
+    <section class="control-group">
+      <h3>Ontologies</h3>
+      <form class="ont-form" id="ontForm">
+        <div class="suggest-wrap">
+          <input type="text" id="ontId" placeholder="Type to search OLS4, such as uberon" autocomplete="off"
+                 role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="ontSuggest" aria-label="Ontology to add">
+          <ul class="suggest-list" id="ontSuggest" role="listbox" hidden></ul>
+        </div>
+        <div class="row">
+          <label><input type="checkbox" id="ontHabitats" checked> Habitats</label>
+          <label><input type="checkbox" id="ontSpecies"> Species</label>
+        </div>
+        <select id="ontEvidence" aria-label="Which links to keep">
+          <option value="0.70">Only well-supported links</option>
+          <option value="0.30">Also include guesses, marked for review</option>
+        </select>
+        <div class="btn-row"><button class="btn btn-primary" id="ontLink" type="submit">Link</button>
+          <span class="muted">About 5 minutes for habitats, 30 for species.</span></div>
+        <div class="progress" id="ontProgress" hidden><span></span></div>
+        <div class="ont-status" id="ontStatus" aria-live="polite"></div>
+      </form>
+      <div class="ont-list" id="ontList"></div>
+    </section>
 
-    <div class="sidebar-section">
+    <section class="control-group">
+      <h3>Stats</h3>
+      <dl class="stats-list" id="statsList"></dl>
+    </section>
+
+    <section class="control-group">
       <h3>Legend</h3>
-      <div class="legend-items">
-        <div class="legend-item"><span class="legend-node" style="background:#2E86AB"></span> Natura 2000 Habitat</div>
-        <div class="legend-item"><span class="legend-node" style="background:#A23B72"></span> Natura 2000 Species</div>
-        <div class="legend-item"><span class="legend-node" style="background:#F18F01"></span> Region</div>
-        <div class="legend-item"><span class="legend-node" style="background:#C73E1D"></span> Status</div>
-        <div class="legend-item"><span class="legend-node" style="background:#3498db; width:14px; height:14px; border-radius:3px;"></span> Wikidata match</div>
-        <div class="legend-item"><span class="legend-node" style="background:#e67e22; width:14px; height:14px; border-radius:3px;"></span> DBpedia match</div>
-        <div class="legend-item"><span class="legend-node" style="background:#27ae60; width:14px; height:14px; border-radius:3px;"></span> OLS4/ENVO/NCBITaxon</div>
-        <div class="legend-item"><span class="legend-edge" style="background:#888; border:1px dashed #888; height:0; border-top: 2px dashed #888;"></span> closeMatch</div>
-        <div class="legend-item"><span class="legend-edge" style="background:#888; border:1px dotted #888; height:0; border-top: 2px dotted #888;"></span> relatedMatch</div>
+      <div class="legend-block">
+        <div class="legend-row"><span class="legend-node" style="background:#2E86AB"></span> Habitat</div>
+        <div class="legend-row"><span class="legend-node" style="background:#A23B72"></span> Species</div>
+        <div class="legend-row"><span class="legend-node" style="background:#F18F01"></span> Region</div>
+        <div class="legend-row"><span class="legend-node" style="background:#C73E1D"></span> Conservation status</div>
+        <div class="legend-row"><span class="legend-edge"></span> exactMatch</div>
+        <div class="legend-row"><span class="legend-edge" style="border-top-style:dashed"></span> closeMatch</div>
+        <div class="legend-row"><span class="legend-edge" style="border-top-style:dotted"></span> relatedMatch</div>
+        <div class="legend-row"><span class="legend-edge" style="border-top-width:3px"></span> broad / narrow: arrow points to the broader term</div>
+        <div class="muted">Linked-term colours follow "Linked to" above.</div>
       </div>
-    </div>
-
+    </section>
   </aside>
 
-  <!-- Center: Graph or Table -->
-  <div class="center" id="centerPanel">
-    <div id="cy"></div>
-
-    <div class="table-view" id="tableView">
-      <table class="data-table" id="dataTable">
-        <thead>
-          <tr>
-            <th data-sort="label">Label</th>
-            <th data-sort="category">Category</th>
-            <th data-sort="scientific_name">Scientific Name</th>
-            <th>Wikidata</th>
-            <th>DBpedia</th>
-            <th>OLS4</th>
-          </tr>
-        </thead>
-        <tbody id="tableBody"></tbody>
-      </table>
+  <main class="panel-main">
+    <div class="pane-toggle" role="tablist">
+      <button class="pane-toggle-btn active" data-pane="split">Split</button>
+      <button class="pane-toggle-btn" data-pane="map">Map full</button>
+      <button class="pane-toggle-btn" data-pane="graph">Graph full</button>
+      <button class="pane-toggle-btn" data-pane="table">Table</button>
+      <span class="graph-info" id="graphInfo"></span>
     </div>
 
-    <div class="map-view" id="mapView">
-      <div id="map"></div>
-      <div class="map-card">
-        <h3>Where does it live?</h3>
-        <input type="text" id="mapSearch" placeholder="Find a habitat or species…">
-        <div class="map-results" id="mapResults"></div>
-        <div id="mapSelected">
-          <div class="map-hint">Pick a habitat or species: search here, or click one in the graph or table and press <b>Show on map</b>.</div>
+    <div class="split-container mode-split" id="splitContainer">
+      <section class="pane pane-map" id="mapPane">
+        <div id="map"></div>
+        <div class="map-card">
+          <h3>Where does it live?</h3>
+          <input type="search" id="mapSearch" placeholder="Find a habitat or species: type a letter or code…">
+          <div class="map-results" id="mapResults"></div>
+          <div id="mapSelected">
+            <div class="map-hint">Click a habitat or species in the graph below, or search here.</div>
+          </div>
+          <div class="map-section">
+            <h3>Background layers</h3>
+            <label class="map-layer-row"><input type="checkbox" id="lyrSites" checked> Natura 2000 protected sites</label>
+            <label class="map-layer-row"><input type="checkbox" id="lyrSamples"> <span class="check-swatch" style="background:#2e7d32"></span> Environmental DNA samples <span class="count" id="samplesCount"></span></label>
+          </div>
         </div>
-        <div class="map-section">
-          <h3>Background layers</h3>
-          <label class="map-layer-row"><input type="checkbox" id="lyrSites" checked> Natura 2000 protected sites</label>
-          <label class="map-layer-row"><input type="checkbox" id="lyrSamples"> <span class="color-dot" style="background:#6ae86a"></span> Environmental DNA samples <span class="count" id="samplesCount"></span></label>
-        </div>
-      </div>
-    </div>
+      </section>
 
-    <div class="overlay" id="loadingOverlay">
-      <div class="spinner"></div>
-      <div class="overlay-msg">Loading ontology graph…</div>
-    </div>
-  </div>
+      <div class="splitter" id="splitter" title="Drag to resize"></div>
 
-  <!-- Detail panel -->
-  <aside class="detail-panel" id="detailPanel">
-    <div class="detail-empty" id="detailEmpty">
-      <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-        <circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/>
-      </svg>
-      <div>Click any node to see details</div>
-    </div>
-    <div id="detailContent" style="display:none"></div>
-  </aside>
+      <section class="pane pane-graph" id="graphPane">
+        <div id="cy"></div>
+        <div class="pane-overlay loading" id="graphLoading"><div class="spinner"></div><div>Loading ontology graph…</div></div>
+        <div class="pane-overlay" id="graphError" hidden><div class="error" id="graphErrorText"></div></div>
+        <div class="graph-hint" id="graphHint" hidden>Scroll to zoom. Click a term to bring it and its links into view; click empty space to clear.</div>
+      </section>
 
+      <section class="pane pane-table" id="tablePane">
+        <table class="data-table">
+          <thead><tr id="tableHead"></tr></thead>
+          <tbody id="tableBody"></tbody>
+        </table>
+      </section>
+    </div>
+  </main>
 </div>
 
+<aside class="detail-panel" id="detailPanel" hidden>
+  <button class="btn btn-ghost detail-close" id="detailClose" aria-label="Close">&times;</button>
+  <div class="detail-content" id="detailContent"></div>
+</aside>
+
 <script>
+// ─── Linked-term sources: the pipeline's own, plus any added from the viewer ───
+const BUILTIN_SOURCES = [
+  { id: 'wikidata', label: 'Wikidata', color: '#3498db', shape: 'diamond' },
+  { id: 'dbpedia', label: 'DBpedia', color: '#e67e22', shape: 'rectangle' },
+  { id: 'ols4', label: 'ENVO / NCBITaxon (OLS4)', color: '#27ae60', shape: 'ellipse' },
+  { id: 'gbif', label: 'GBIF', color: '#9b59b6', shape: 'triangle' },
+  { id: 'eunis', label: 'EUNIS', color: '#c0a03a', shape: 'hexagon' },
+];
+const ADDED_PALETTE = ['#00897b', '#d81b60', '#5e35b1', '#6d4c41', '#039be5', '#7cb342', '#f4511e', '#546e7a'];
+let sources = [...BUILTIN_SOURCES];
+
+const MATCH_CLASS = { exactMatch: 'type-exact', closeMatch: 'type-close', broadMatch: 'type-broad', narrowMatch: 'type-narrow', relatedMatch: 'type-related' };
+
 // ─── State ───────────────────────────────────────────────────────────────────
 let cy = null;
 let allTerms = [];
-let allMappings = [];
-let statsData = {};
 let sortColumn = 'label';
 let sortAsc = true;
-let viewMode = 'graph'; // 'graph' | 'table' | 'map'
+let pane = 'split';      // split | map | graph | table
 let searchDebounce = null;
+let ontPoll = null;
 
-// ─── Bootstrap ───────────────────────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', async () => {
-  await loadStats();
-  await initGraph();
   setupEventListeners();
+  initSplitter();
+  const job = await loadOntologies();
+  if (job && job.state === 'running') pollJob();   // a job started before this page loaded
+  await loadStats();
+  initMap();
+  await initGraph();
 });
 
-// ─── Data loading ─────────────────────────────────────────────────────────────
+const cssVar = (name) => getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+const sourceOf = (id) => sources.find((s) => s.id === id) || { id, label: id, color: '#888', shape: 'round-rectangle' };
+
+// ─── Sources and filters ─────────────────────────────────────────────────────
+function renderSourceChecks() {
+  const box = document.getElementById('ontologyChecks');
+  const was = new Map([...box.querySelectorAll('.ont-filter')].map((c) => [c.value, c.checked]));
+  box.replaceChildren(...sources.map((s) => {
+    const label = document.createElement('label');
+    const cb = document.createElement('input');
+    cb.type = 'checkbox'; cb.className = 'ont-filter'; cb.value = s.id; cb.checked = was.get(s.id) ?? true;
+    cb.addEventListener('change', applyFilters);
+    const sw = document.createElement('span'); sw.className = 'check-swatch'; sw.style.background = s.color;
+    label.append(cb, sw, document.createTextNode(' ' + s.label));
+    return label;
+  }));
+}
+
+function buildParams() {
+  const cats = [...document.querySelectorAll('.cat-filter:checked')].map((c) => c.value);
+  const onts = [...document.querySelectorAll('.ont-filter:checked')].map((c) => c.value);
+  const p = new URLSearchParams();
+  if (cats.length) p.set('category', cats.join(','));
+  // nothing ticked means nothing linked, not everything
+  p.set('ontology', onts.length ? onts.join(',') : '__none__');
+  p.set('min_confidence', document.getElementById('confSlider').value);
+  p.set('limit', document.getElementById('limitSlider').value);
+  const search = document.getElementById('searchInput').value.trim();
+  if (search) p.set('search', search);
+  return p.toString();
+}
+
+// ─── Stats ───────────────────────────────────────────────────────────────────
 async function loadStats() {
   try {
-    const r = await fetch('/api/stats');
-    statsData = await r.json();
-    updateStatsPanel(statsData);
+    const s = await (await fetch('/api/stats')).json();
+    const rows = [
+      ['Terms', s.total_terms], ['Habitats', s.terms_by_category?.habitat], ['Species', s.terms_by_category?.species],
+      ['Links', s.total_mappings],
+      ...sources.map((src) => [src.label, s.mappings_by_ontology?.[src.id] ?? 0]),
+      ['Avg confidence', s.avg_confidence != null ? s.avg_confidence.toFixed(3) : null],
+    ];
+    document.getElementById('statsList').replaceChildren(...rows.map(([k, v]) => {
+      const d = document.createElement('div');
+      const dt = document.createElement('dt'); dt.textContent = k;
+      const dd = document.createElement('dd'); dd.textContent = v == null ? '—' : (typeof v === 'number' ? v.toLocaleString() : v);
+      d.append(dt, dd);
+      return d;
+    }));
+    setText('speciesCount', s.terms_by_category?.species ? `(${s.terms_by_category.species.toLocaleString()})` : '');
   } catch (e) {
     console.warn('Stats load failed:', e);
   }
 }
 
-function updateStatsPanel(s) {
-  setText('statTotal', s.total_terms ?? '—');
-  setText('statHabitats', s.terms_by_category?.habitat ?? '—');
-  setText('statSpecies', s.terms_by_category?.species ?? '—');
-  setText('statMappings', s.total_mappings ?? '—');
-  setText('statWikidata', s.mappings_by_ontology?.wikidata ?? '—');
-  setText('statDbpedia', s.mappings_by_ontology?.dbpedia ?? '—');
-  setText('statOls4', s.mappings_by_ontology?.ols4 ?? '—');
-  setText('statGbif', s.mappings_by_ontology?.gbif ?? '—');
-  setText('statEunis', s.mappings_by_ontology?.eunis ?? '—');
-  setText('statAvgConf', s.avg_confidence != null ? s.avg_confidence.toFixed(3) : '—');
-}
-
+// ─── Graph ───────────────────────────────────────────────────────────────────
 async function initGraph() {
-  showLoading(true);
+  showGraphState('loading');
   try {
-    const params = buildParams();
-    const r = await fetch('/api/graph?' + params);
+    const r = await fetch('/api/graph?' + buildParams());
     const data = await r.json();
-
     if (data.data_missing) {
-      showError('Pipeline data not found.<br>Please run: <code>docker-compose --profile pipeline up</code>');
+      showGraphState('error', 'No pipeline data yet. Run <code>docker compose --profile pipeline up</code>, then press Reload data.');
       return;
     }
-    if (data.error) {
-      showError('Error loading data: ' + data.error);
-      return;
-    }
-
+    if (data.error) { showGraphState('error', 'Could not load the graph: ' + escHtml(data.error)); return; }
     renderGraph(data.nodes, data.edges);
-    const n2kCount = data.nodes.filter(n => n.data.node_type === 'natura2000').length;
-    document.getElementById('graphSizeInfo').textContent =
-      `Showing ${n2kCount} N2K terms · ${data.edges.length} links`;
-    if (viewMode === 'table') await loadTableData();
+    const n2k = data.nodes.filter((n) => n.data.node_type === 'natura2000').length;
+    setText('graphInfo', `${n2k.toLocaleString()} Natura 2000 terms · ${data.edges.length.toLocaleString()} links shown`);
+    setText('loadStatus', 'Updated ' + new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }));
+    showGraphState('ok');
+    document.getElementById('graphHint').hidden = n2k < 60;
+    if (pane === 'table') await loadTableData();
   } catch (e) {
-    showError('Failed to connect to server.<br>' + e.message);
-  } finally {
-    showLoading(false);
+    showGraphState('error', 'Could not reach the server. ' + escHtml(e.message));
   }
 }
+const applyFilters = initGraph;
 
-function buildParams() {
-  const cats = [...document.querySelectorAll('.cat-filter:checked')].map(c => c.value);
-  const onts = [...document.querySelectorAll('.ont-filter:checked')].map(c => c.value);
-  const conf = document.getElementById('confSlider').value;
-  const limit = document.getElementById('limitSlider').value;
-  const search = document.getElementById('searchInput').value.trim();
-  const p = new URLSearchParams();
-  if (cats.length) p.set('category', cats.join(','));
-  if (onts.length) p.set('ontology', onts.join(','));
-  p.set('min_confidence', conf);
-  p.set('limit', limit);
-  if (search) p.set('search', search);
-  return p.toString();
-}
-
-// ─── Cytoscape rendering ─────────────────────────────────────────────────────
 function renderGraph(nodes, edges) {
   if (cy) { cy.destroy(); cy = null; }
+  for (const n of nodes) if (n.data.node_type === 'external') {
+    const s = sourceOf(n.data.source_ontology); n.data.color = s.color; n.data.shape = s.shape;
+  }
+  for (const e of edges) e.data.color = sourceOf(e.data.source_ontology).color;
+  const text = cssVar('--text'), muted = cssVar('--text-muted'), bg = cssVar('--bg');
 
   cy = cytoscape({
     container: document.getElementById('cy'),
     elements: { nodes, edges },
+    minZoom: 0.05, maxZoom: 4,
     style: [
-      // N2K nodes by category
-      { selector: 'node[node_type="natura2000"][category="habitat"]',
-        style: { 'background-color': '#2E86AB', 'border-color': '#1a5c80', 'border-width': 2 } },
-      { selector: 'node[node_type="natura2000"][category="species"]',
-        style: { 'background-color': '#A23B72', 'border-color': '#7a1a50', 'border-width': 2 } },
-      { selector: 'node[node_type="natura2000"][category="region"]',
-        style: { 'background-color': '#F18F01', 'border-color': '#b06800', 'border-width': 2 } },
-      { selector: 'node[node_type="natura2000"][category="status"]',
-        style: { 'background-color': '#C73E1D', 'border-color': '#952e14', 'border-width': 2 } },
-      // Generic N2K node styles
       { selector: 'node[node_type="natura2000"]',
-        style: {
-          'label': 'data(label)', 'font-size': '9px', 'color': '#e0ecf8',
-          'text-wrap': 'wrap', 'text-max-width': '80px', 'text-halign': 'center',
-          'text-valign': 'bottom', 'text-margin-y': 4,
-          'width': 36, 'height': 36,
-        }
-      },
-      // External nodes
-      { selector: 'node[node_type="external"][source_ontology="wikidata"]',
-        style: { 'background-color': '#3498db', 'shape': 'diamond', 'width': 18, 'height': 18 } },
-      { selector: 'node[node_type="external"][source_ontology="dbpedia"]',
-        style: { 'background-color': '#e67e22', 'shape': 'rectangle', 'width': 18, 'height': 18 } },
-      { selector: 'node[node_type="external"][source_ontology="ols4"]',
-        style: { 'background-color': '#27ae60', 'shape': 'ellipse', 'width': 18, 'height': 18 } },
-      { selector: 'node[node_type="external"][source_ontology="gbif"]',
-        style: { 'background-color': '#9b59b6', 'shape': 'triangle', 'width': 18, 'height': 18 } },
-      { selector: 'node[node_type="external"][source_ontology="eunis"]',
-        style: { 'background-color': '#c0a03a', 'shape': 'hexagon', 'width': 18, 'height': 18 } },
+        style: { 'label': 'data(label)', 'font-size': '9px', 'color': text, 'text-wrap': 'wrap', 'text-max-width': '90px',
+                 'text-valign': 'bottom', 'text-margin-y': 4, 'width': 30, 'height': 30, 'border-width': 2, 'border-color': bg,
+                 'text-outline-color': bg, 'text-outline-width': 2 } },
+      { selector: 'node[category="habitat"]', style: { 'background-color': '#2E86AB' } },
+      { selector: 'node[category="species"]', style: { 'background-color': '#A23B72' } },
+      { selector: 'node[category="region"]', style: { 'background-color': '#F18F01' } },
+      { selector: 'node[category="status"]', style: { 'background-color': '#C73E1D' } },
       { selector: 'node[node_type="external"]',
-        style: {
-          'label': 'data(label)', 'font-size': '7px', 'color': '#90b0cc',
-          'text-wrap': 'ellipsis', 'text-max-width': '60px',
-          'text-halign': 'center', 'text-valign': 'bottom', 'text-margin-y': 3,
-        }
-      },
-      // Edges by ontology
-      { selector: 'edge[source_ontology="wikidata"]',
-        style: { 'line-color': '#3498db' } },
-      { selector: 'edge[source_ontology="dbpedia"]',
-        style: { 'line-color': '#e67e22' } },
-      { selector: 'edge[source_ontology="ols4"]',
-        style: { 'line-color': '#27ae60' } },
-      { selector: 'edge[source_ontology="gbif"]',
-        style: { 'line-color': '#9b59b6' } },
-      { selector: 'edge[source_ontology="eunis"]',
-        style: { 'line-color': '#c0a03a' } },
-      // Edge by match type
-      { selector: 'edge[match_type="skos:exactMatch"]',
-        style: { 'line-style': 'solid' } },
-      { selector: 'edge[match_type="skos:closeMatch"]',
-        style: { 'line-style': 'dashed', 'line-dash-pattern': [6, 3] } },
-      { selector: 'edge[match_type="skos:relatedMatch"]',
-        style: { 'line-style': 'dotted' } },
-      // Generic edge
+        style: { 'background-color': 'data(color)', 'shape': 'data(shape)', 'width': 16, 'height': 16,
+                 'label': 'data(label)', 'font-size': '7px', 'color': muted, 'text-wrap': 'ellipsis', 'text-max-width': '70px',
+                 'text-valign': 'bottom', 'text-margin-y': 3, 'text-outline-color': bg, 'text-outline-width': 1.5 } },
       { selector: 'edge',
-        style: {
-          'width': 'mapData(confidence, 0.5, 1.0, 1, 4)',
-          'opacity': 'mapData(confidence, 0.5, 1.0, 0.4, 0.9)',
-          'curve-style': 'bezier',
-          'target-arrow-shape': 'none',
-        }
-      },
-      // Highlighted
-      { selector: 'node.highlighted',
-        style: { 'border-width': 4, 'border-color': '#fff', 'z-index': 999 } },
-      { selector: 'node.faded',
-        style: { 'opacity': 0.15 } },
-      { selector: 'edge.faded',
-        style: { 'opacity': 0.05 } },
+        style: { 'line-color': 'data(color)', 'target-arrow-color': 'data(color)', 'source-arrow-color': 'data(color)',
+                 'width': 'mapData(confidence, 0.3, 1.0, 1, 3.5)', 'opacity': 'mapData(confidence, 0.3, 1.0, 0.45, 0.9)',
+                 'curve-style': 'bezier', 'arrow-scale': 0.8 } },
+      { selector: 'edge[match_type="skos:closeMatch"]', style: { 'line-style': 'dashed', 'line-dash-pattern': [6, 3] } },
+      { selector: 'edge[match_type="skos:relatedMatch"]', style: { 'line-style': 'dotted' } },
+      // the arrow points at the broader term
+      { selector: 'edge[match_type="skos:broadMatch"]', style: { 'target-arrow-shape': 'triangle' } },
+      { selector: 'edge[match_type="skos:narrowMatch"]', style: { 'source-arrow-shape': 'triangle' } },
+      { selector: 'node.highlighted', style: { 'border-width': 4, 'border-color': cssVar('--accent'), 'z-index': 999 } },
+      { selector: '.faded', style: { 'opacity': 0.12 } },
     ],
-    layout: {
-      name: 'cose',
-      animate: nodes.length < 200,
-      animationDuration: 800,
-      nodeRepulsion: 6000,
-      idealEdgeLength: 100,
-      gravity: 0.5,
-      numIter: 1000,
-      randomize: true,
-    },
+    layout: { name: 'cose', animate: nodes.length < 200, animationDuration: 700, nodeRepulsion: 6000,
+              idealEdgeLength: 90, gravity: 0.5, numIter: 1000, randomize: true },
   });
 
   cy.on('tap', 'node', async (evt) => {
     const node = evt.target;
     highlightNode(node);
-    await showNodeDetail(node.data());
-  });
-
-  cy.on('tap', (evt) => {
-    if (evt.target === cy) {
-      clearHighlight();
-      showDetailEmpty();
+    // at the overview zoom nodes overlap, so bring the selection and its links into view
+    cy.animate({ fit: { eles: node.closedNeighborhood(), padding: 60 } }, { duration: 400 });
+    const d = node.data();
+    await showNodeDetail(d);
+    // In the split view the map follows the graph.
+    if (pane === 'split' && d.node_type === 'natura2000' && ['habitat', 'species'].includes(d.category)) {
+      showTermOnMap(d.id.replace(/^n2k_/, ''));
     }
   });
+  cy.on('tap', (evt) => { if (evt.target === cy) { clearHighlight(); hideDetail(); } });
 }
 
 function highlightNode(node) {
   cy.elements().removeClass('highlighted faded');
-  const neighborhood = node.neighborhood().add(node);
-  cy.elements().not(neighborhood).addClass('faded');
+  cy.elements().not(node.closedNeighborhood()).addClass('faded');
   node.addClass('highlighted');
 }
+function clearHighlight() { if (cy) cy.elements().removeClass('highlighted faded'); }
 
-function clearHighlight() {
-  cy.elements().removeClass('highlighted faded');
+function focusTermInGraph(termId) {
+  if (!cy) return;
+  const node = cy.getElementById('n2k_' + termId);
+  if (node && node.length) {
+    highlightNode(node);
+    cy.animate({ fit: { eles: node.closedNeighborhood(), padding: 60 } }, { duration: 400 });
+  }
 }
 
 // ─── Detail panel ────────────────────────────────────────────────────────────
-async function showNodeDetail(data) {
-  const panel = document.getElementById('detailContent');
-  const empty = document.getElementById('detailEmpty');
+function showDetail(html) {
+  document.getElementById('detailContent').innerHTML = html;
+  document.getElementById('detailPanel').hidden = false;
+}
+function hideDetail() { document.getElementById('detailPanel').hidden = true; }
 
+async function showNodeDetail(data) {
   if (data.node_type === 'external') {
-    empty.style.display = 'none';
-    panel.style.display = 'block';
-    panel.innerHTML = `
-      <div class="detail-term-title">${escHtml(data.label)}</div>
-      <div class="detail-meta">External ontology node</div>
-      <div class="detail-field">
-        <label>Source Ontology</label>
-        <p>${escHtml(data.source_ontology || '—')}</p>
-      </div>
-      <div class="detail-field">
-        <label>URI</label>
-        <p><a href="${escHtml(data.uri)}" target="_blank" rel="noopener">${escHtml(data.uri)}</a></p>
-      </div>`;
+    const s = sourceOf(data.source_ontology);
+    showDetail(`
+      <h2>${escHtml(data.label)}</h2>
+      <div class="detail-meta">Linked term · ${escHtml(s.label)}</div>
+      <div class="detail-field"><label>URI</label><p><a href="${escHtml(safeUrl(data.uri))}" target="_blank" rel="noopener">${escHtml(data.uri)}</a></p></div>`);
     return;
   }
-
   const termId = data.id.replace(/^n2k_/, '');
   try {
-    const r = await fetch(`/api/term/${encodeURIComponent(termId)}`);
-    const resp = await r.json();
+    const resp = await (await fetch(`/api/term/${encodeURIComponent(termId)}`)).json();
     if (resp.error) return;
-
     const t = resp.term;
-    const mappings = resp.mappings || [];
-
-    empty.style.display = 'none';
-    panel.style.display = 'block';
-
-    const catBadge = `<span class="badge badge-${t.category || ''}">${escHtml(t.category || '')}</span>`;
-
-    let mappingsHtml = '';
-    if (mappings.length) {
-      const sorted = [...mappings].sort((a, b) => b.confidence - a.confidence);
-      mappingsHtml = sorted.map(m => {
-        const ont = ['wikidata', 'dbpedia', 'gbif', 'eunis'].find(k => m.source_ontology?.includes(k)) || 'ols4';
-        const typeClass = m.match_type?.includes('exact') ? 'type-exact'
-                        : m.match_type?.includes('close') ? 'type-close' : 'type-related';
-        const typeLabel = (m.match_type || '').replace('skos:', '');
-        return `<div class="mapping-card ${ont}">
-          <div class="mapping-label">${escHtml(m.target_label || m.target_uri)}</div>
-          <div class="mapping-meta">
-            <span class="conf-badge">${(+m.confidence).toFixed(3)}</span>
-            <span class="type-badge ${typeClass}">${escHtml(typeLabel)}</span>
-          </div>
-          <a class="mapping-uri" href="${escHtml(m.target_uri)}" target="_blank" rel="noopener">${escHtml(m.target_uri)}</a>
-        </div>`;
-      }).join('');
-    } else {
-      mappingsHtml = '<p style="color:#5a7a9a;font-size:0.8rem">No mappings found.</p>';
-    }
-
-    panel.innerHTML = `
-      <div class="detail-term-title">${escHtml(t.label || termId)}</div>
-      <div class="detail-meta">${catBadge} &nbsp; ${t.codes?.length ? 'Code: ' + escHtml(t.codes.join(', ')) : ''}</div>
-      ${t.scientific_name ? `<div class="detail-field"><label>Scientific Name</label><p><em>${escHtml(t.scientific_name)}</em></p></div>` : ''}
-      ${t.definition ? `<div class="detail-field"><label>Definition</label><p>${escHtml(t.definition)}</p></div>` : ''}
-      ${t.directive ? `<div class="detail-field"><label>Directive / Annex</label><p>${escHtml(t.directive)} — Annex ${escHtml(t.annex || '?')}</p></div>` : ''}
-      ${t.source_url ? `<div class="detail-field"><label>Source</label><p><a href="${escHtml(t.source_url)}" target="_blank" rel="noopener">${escHtml(t.source_url)}</a></p></div>` : ''}
-      ${['habitat', 'species'].includes(t.category) ? `<button class="btn btn-primary btn-map" onclick="showTermOnMap('${escAttr(t.id)}')">Show on map</button>` : ''}
-      <div class="detail-field" style="margin-top:12px">
-        <label>Linked Terms (${mappings.length})</label>
-        <div class="mappings-list">${mappingsHtml}</div>
+    const mappings = [...(resp.mappings || [])].sort((a, b) => b.confidence - a.confidence);
+    const cards = mappings.length ? mappings.map((m) => {
+      const type = (m.match_type || '').replace('skos:', '');
+      const s = sourceOf(displaySource(m));
+      return `<div class="mapping-card" style="--card-color:${s.color}">
+        <div class="mapping-label">${escHtml(m.target_label || m.target_uri)}</div>
+        <div class="mapping-meta"><span class="type-badge ${MATCH_CLASS[type] || 'type-related'}">${escHtml(type)}</span>
+          <span class="conf-badge">${(+m.confidence).toFixed(2)}</span><span>${escHtml(s.label)}</span>${m.review ? '<span>needs review</span>' : ''}</div>
+        <a class="mapping-uri" href="${escHtml(safeUrl(m.target_uri))}" target="_blank" rel="noopener">${escHtml(m.target_uri)}</a>
       </div>`;
+    }).join('') : '<p class="muted">No links yet.</p>';
+    showDetail(`
+      <h2>${escHtml(t.label || termId)}</h2>
+      <div class="detail-meta"><span class="badge badge-${escHtml(t.category || '')}">${escHtml(t.category || '')}</span>
+        ${t.codes?.length ? ' Code ' + escHtml(t.codes.join(', ')) : ''}</div>
+      ${t.scientific_name ? `<div class="detail-field"><label>Scientific name</label><p><em>${escHtml(t.scientific_name)}</em></p></div>` : ''}
+      ${t.definition ? `<div class="detail-field"><label>Definition</label><p>${escHtml(t.definition)}</p></div>` : ''}
+      ${t.directive ? `<div class="detail-field"><label>Directive / Annex</label><p>${escHtml(t.directive)}, Annex ${escHtml(t.annex || '?')}</p></div>` : ''}
+      ${t.source_url ? `<div class="detail-field"><label>Source</label><p><a href="${escHtml(safeUrl(t.source_url))}" target="_blank" rel="noopener">${escHtml(t.source_url)}</a></p></div>` : ''}
+      ${['habitat', 'species'].includes(t.category) && pane !== 'split' ? `<div class="detail-field"><button class="btn btn-primary" data-show-map="${escHtml(t.id)}">Show on map</button></div>` : ''}
+      <div class="detail-field"><label>Linked terms (${mappings.length})</label><div class="mappings-list">${cards}</div></div>`);
   } catch (e) {
     console.warn('Failed to load term detail:', e);
   }
 }
 
-function showDetailEmpty() {
-  document.getElementById('detailEmpty').style.display = 'flex';
-  document.getElementById('detailContent').style.display = 'none';
+// Mirrors viz/app.py _display_ontology, for mappings fetched from /api/term.
+function displaySource(m) {
+  if (m.added_ontology) return m.added_ontology;
+  const o = m.source_ontology || '';
+  return ['wikidata', 'dbpedia', 'gbif', 'eunis'].find((k) => o.includes(k)) || 'ols4';
 }
 
-// ─── Table view ───────────────────────────────────────────────────────────────
+// ─── Table ───────────────────────────────────────────────────────────────────
 async function loadTableData() {
+  const cats = [...document.querySelectorAll('.cat-filter:checked')].map((c) => c.value);
+  const p = new URLSearchParams({ min_confidence: document.getElementById('confSlider').value });
+  if (cats.length) p.set('category', cats.join(','));
+  const search = document.getElementById('searchInput').value.trim();
+  if (search) p.set('search', search);
   try {
-    const cats = [...document.querySelectorAll('.cat-filter:checked')].map(c => c.value);
-    const search = document.getElementById('searchInput').value.trim();
-    const p = new URLSearchParams();
-    if (cats.length) p.set('category', cats.join(','));
-    if (search) p.set('search', search);
-    const r = await fetch('/api/terms?' + p);
-    allTerms = await r.json();
-
-    // Also load mappings for counts
-    const mr = await fetch('/api/graph?' + buildParams());
-    const gd = await mr.json();
-    allMappings = (gd.edges || []).map(e => e.data);
-
+    allTerms = await (await fetch('/api/terms?' + p)).json();
+    if (!Array.isArray(allTerms)) allTerms = [];
     renderTable();
   } catch (e) {
     console.warn('Table data load failed:', e);
@@ -622,107 +577,386 @@ async function loadTableData() {
 }
 
 function renderTable() {
-  const tbody = document.getElementById('tableBody');
+  const head = document.getElementById('tableHead');
+  const cols = [['label', 'Label'], ['category', 'Category'], ['scientific_name', 'Scientific name']];
+  head.replaceChildren(...cols.map(([k, l]) => th(l, k)), ...sources.map((s) => th(s.label, 'link:' + s.id, true)));
+  const val = (t, col) => col.startsWith('link:') ? (t.link_counts?.[col.slice(5)] || 0) : (t[col] || '').toString().toLowerCase();
   const sorted = [...allTerms].sort((a, b) => {
-    const va = (a[sortColumn] || '').toString().toLowerCase();
-    const vb = (b[sortColumn] || '').toString().toLowerCase();
-    return sortAsc ? va.localeCompare(vb) : vb.localeCompare(va);
+    const va = val(a, sortColumn), vb = val(b, sortColumn);
+    const c = typeof va === 'number' ? va - vb : va.localeCompare(vb);
+    return sortAsc ? c : -c;
   });
-
-  tbody.innerHTML = sorted.map(t => {
-    const wdCount = allMappings.filter(m => m.source === `n2k_${t.id}` && m.source_ontology === 'wikidata').length;
-    const dbCount = allMappings.filter(m => m.source === `n2k_${t.id}` && m.source_ontology === 'dbpedia').length;
-    const olsCount = allMappings.filter(m => m.source === `n2k_${t.id}` && m.source_ontology === 'ols4').length;
-    return `<tr onclick="selectTermInTable('${escAttr(t.id)}')">
-      <td>${escHtml(t.label || t.id)}</td>
-      <td><span class="badge badge-${t.category || ''}">${escHtml(t.category || '')}</span></td>
-      <td><em>${escHtml(t.scientific_name || '—')}</em></td>
-      <td>${wdCount || '—'}</td>
-      <td>${dbCount || '—'}</td>
-      <td>${olsCount || '—'}</td>
-    </tr>`;
-  }).join('');
+  document.getElementById('tableBody').replaceChildren(...sorted.map((t) => {
+    const tr = document.createElement('tr');
+    tr.addEventListener('click', () => { showNodeDetail({ id: `n2k_${t.id}`, node_type: 'natura2000' }); focusTermInGraph(t.id); });
+    const cat = document.createElement('td');
+    const badge = document.createElement('span'); badge.className = `badge badge-${t.category || ''}`; badge.textContent = t.category || '';
+    cat.append(badge);
+    const sci = td(t.scientific_name || '—'); sci.style.fontStyle = t.scientific_name ? 'italic' : '';
+    tr.append(td(t.label || t.id), cat, sci, ...sources.map((s) => td(t.link_counts?.[s.id] ? String(t.link_counts[s.id]) : '—', 'num')));
+    return tr;
+  }));
 }
 
-async function selectTermInTable(termId) {
-  await showNodeDetail({ id: `n2k_${termId}`, node_type: 'natura2000' });
+function th(label, key, num) {
+  const el = document.createElement('th');
+  el.textContent = label + (sortColumn === key ? (sortAsc ? ' ▲' : ' ▼') : '');
+  el.dataset.sort = key;
+  if (num) el.className = 'num';
+  el.setAttribute('aria-sort', sortColumn === key ? (sortAsc ? 'ascending' : 'descending') : 'none');
+  el.addEventListener('click', () => {
+    if (sortColumn === key) sortAsc = !sortAsc; else { sortColumn = key; sortAsc = !num; }
+    renderTable();
+  });
+  return el;
+}
+function td(text, cls) { const el = document.createElement('td'); el.textContent = text; if (cls) el.className = cls; return el; }
+
+// ─── Ontology manager ───────────────────────────────────────────────────────
+async function loadOntologies() {
+  try {
+    const data = await (await fetch('/api/ontologies')).json();
+    sources = [...BUILTIN_SOURCES, ...data.added.map((o, i) => ({
+      id: o.id, label: `${o.id.toUpperCase()}`, title: o.title, color: ADDED_PALETTE[i % ADDED_PALETTE.length],
+      shape: 'round-rectangle', added: o,
+    }))];
+    renderSourceChecks();
+    renderOntologyList();
+    renderJob(data.job);
+    return data.job;
+  } catch (e) {
+    console.warn('Ontology list failed:', e);
+    renderSourceChecks();
+    return null;
+  }
 }
 
-// ─── Event listeners ─────────────────────────────────────────────────────────
+function renderOntologyList() {
+  const list = document.getElementById('ontList');
+  const added = sources.filter((s) => s.added);
+  list.replaceChildren(...added.map((s) => {
+    const o = s.added;
+    const row = document.createElement('div'); row.className = 'ont-item';
+    const sw = document.createElement('span'); sw.className = 'check-swatch'; sw.style.background = s.color;
+    const name = document.createElement('span'); name.textContent = s.title && s.title.toLowerCase() !== s.id ? `${s.id} · ${s.title}` : s.id;
+    const actions = document.createElement('span'); actions.className = 'actions';
+    const upd = document.createElement('button'); upd.type = 'button'; upd.className = 'btn btn-small'; upd.textContent = 'Update';
+    upd.title = 'Link again with the current matcher and ontology version';
+    upd.addEventListener('click', () => startLink(o.id, o.categories, o.min_confidence));
+    const rm = document.createElement('button'); rm.type = 'button'; rm.className = 'btn btn-small'; rm.textContent = 'Remove';
+    rm.addEventListener('click', () => removeOntology(o.id, rm));
+    actions.append(upd, rm);
+    const meta = document.createElement('span'); meta.className = 'meta';
+    const when = o.updated ? new Date(o.updated).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' }) : '';
+    const kept = (o.min_confidence ?? 0.7) < 0.7 ? ' incl. guesses' : '';
+    meta.textContent = `${o.count.toLocaleString()} of ${o.terms_searched.toLocaleString()} ${o.categories.join(' and ')} linked${kept} · ${when}`;
+    row.append(sw, name, actions, meta);
+    return row;
+  }));
+}
+
+function renderJob(job) {
+  const status = document.getElementById('ontStatus');
+  const bar = document.getElementById('ontProgress');
+  const btn = document.getElementById('ontLink');
+  status.classList.remove('error');
+  // idle leaves the status line alone: it may hold a message such as "Removed uberon"
+  if (!job || job.state === 'idle') { bar.hidden = true; btn.disabled = false; return; }
+  if (job.state === 'running') {
+    btn.disabled = true; bar.hidden = false;
+    const pct = job.total ? Math.round(100 * job.done / job.total) : 0;
+    bar.firstElementChild.style.width = pct + '%';
+    status.textContent = job.total
+      ? `Linking ${job.ontology}: ${job.done.toLocaleString()} of ${job.total.toLocaleString()} terms searched, ${job.linked.toLocaleString()} linked.`
+      : `Checking ${job.ontology} in OLS4…`;
+    return;
+  }
+  btn.disabled = false; bar.hidden = true;
+  if (job.state === 'done') {
+    const slider = +document.getElementById('confSlider').value;
+    status.textContent = `Linked ${job.linked.toLocaleString()} of ${job.total.toLocaleString()} terms to ${job.ontology}.`
+      + (job.skipped ? ` Skipped ${job.skipped} that did not answer in time (${(job.skipped_terms || []).join(', ')}); press Update to retry.` : '')
+      // guesses sit at 0.30-0.35, under the default slider, and would look like nothing happened
+      + (job.linked && job.min_confidence < slider ? ` Guesses score ${job.min_confidence.toFixed(2)}: lower Min confidence to see them.` : '');
+  }
+  if (job.state === 'error') { status.textContent = `Linking ${job.ontology} failed: ${job.error}`; status.classList.add('error'); }
+}
+
+async function startLink(id, categories, minConfidence) {
+  const status = document.getElementById('ontStatus');
+  status.classList.remove('error');
+  status.textContent = `Checking ${id} in OLS4…`;
+  document.getElementById('ontLink').disabled = true;
+  try {
+    const r = await fetch('/api/ontologies', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+                                                body: JSON.stringify({ id, categories, min_confidence: minConfidence ?? +document.getElementById('ontEvidence').value }) });
+    const data = await r.json();
+    if (!r.ok) { status.textContent = data.error || 'Could not start linking.'; status.classList.add('error'); document.getElementById('ontLink').disabled = false; return; }
+    renderJob(data.job);
+    pollJob();
+  } catch (e) {
+    status.textContent = 'Could not reach the server.'; status.classList.add('error');
+    document.getElementById('ontLink').disabled = false;
+  }
+}
+
+function pollJob() {
+  clearTimeout(ontPoll);
+  ontPoll = setTimeout(async () => {
+    const job = await loadOntologies();
+    if (job && job.state === 'running') { pollJob(); return; }
+    await loadStats();
+    await initGraph();
+  }, 1500);
+}
+
+async function removeOntology(id, btn) {
+  // two clicks instead of a confirm() dialog
+  if (btn.dataset.armed !== '1') { btn.dataset.armed = '1'; btn.textContent = 'Sure?'; setTimeout(() => { btn.dataset.armed = ''; btn.textContent = 'Remove'; }, 3000); return; }
+  const r = await fetch(`/api/ontologies/${encodeURIComponent(id)}`, { method: 'DELETE' });
+  const status = document.getElementById('ontStatus');
+  if (!r.ok) { status.textContent = (await r.json()).error || 'Could not remove it.'; status.classList.add('error'); return; }
+  status.classList.remove('error');
+  status.textContent = `Removed ${id} and its links.`;
+  await loadOntologies();
+  await loadStats();
+  await initGraph();
+}
+
+// ─── Ontology suggestions under the box ──────────────────────────────────────
+// The whole OLS4 catalogue (~290 ontologies) is loaded once and filtered here,
+// so every key press answers at once. Empty box: the ones most useful for habitats
+// and species. Typed letters: ids starting with them first, then names, then the rest.
+const RECOMMENDED = ['envo', 'gold', 'uberon', 'ncbitaxon', 'foodon', 'po', 'pato', 'chebi', 'obi'];
+let catalog = null;          // [{id, title, terms, description}]
+let catalogFailed = false;
+let suggestItems = [];
+let suggestActive = -1;
+
+async function loadCatalog() {
+  if (catalog || catalogFailed) return;
+  try {
+    const r = await fetch('/api/ontologies/catalog');
+    const data = await r.json();
+    if (!r.ok || !Array.isArray(data)) throw new Error(data.error || r.status);
+    catalog = data;
+  } catch (e) {
+    catalogFailed = true;
+    console.warn('OLS4 catalogue failed:', e);
+  }
+}
+
+function rankOntologies(q) {
+  if (!catalog) return [];
+  if (!q) return RECOMMENDED.map((id) => catalog.find((o) => o.id === id)).filter(Boolean);
+  const scored = [];
+  for (const o of catalog) {
+    const id = o.id.toLowerCase(), title = o.title.toLowerCase();
+    let score = null;
+    if (id.startsWith(q)) score = 0;
+    else if (title.startsWith(q)) score = 1;
+    else if (title.split(/[\s\-–(]+/).some((w) => w.startsWith(q))) score = 2;
+    else if (id.includes(q) || title.includes(q)) score = 3;
+    if (score !== null) scored.push([score, o]);
+  }
+  scored.sort((a, b) => a[0] - b[0] || a[1].id.localeCompare(b[1].id));
+  return scored.slice(0, 40).map(([, o]) => o);
+}
+
+// Text with the first occurrence of q marked, built as DOM so names stay text.
+function marked(text, q) {
+  const span = document.createElement('span');
+  const i = q ? text.toLowerCase().indexOf(q) : -1;
+  if (i < 0) { span.textContent = text; return span; }
+  const m = document.createElement('mark'); m.textContent = text.slice(i, i + q.length);
+  span.append(text.slice(0, i), m, text.slice(i + q.length));
+  return span;
+}
+
+async function showSuggestions() {
+  const input = document.getElementById('ontId');
+  const list = document.getElementById('ontSuggest');
+  await loadCatalog();
+  const q = input.value.trim().toLowerCase();
+  const head = document.createElement('li');
+  head.className = 'sg-head'; head.setAttribute('aria-hidden', 'true');
+  if (catalogFailed) {
+    head.textContent = "Couldn't load the OLS4 list. Type the ontology id instead.";
+    list.replaceChildren(head); openSuggest(true); suggestItems = []; return;
+  }
+  suggestItems = rankOntologies(q);
+  suggestActive = suggestItems.length ? 0 : -1;
+  const added = new Set(sources.filter((s) => s.added).map((s) => s.id));
+  head.textContent = !q ? 'Suggested for habitats and species'
+    : suggestItems.length ? `${suggestItems.length === 40 ? 'Top 40' : suggestItems.length} matching “${q}”` : `No ontology matches “${q}”`;
+  list.replaceChildren(head, ...suggestItems.map((o, i) => {
+    const li = document.createElement('li');
+    li.id = `ont-opt-${i}`; li.setAttribute('role', 'option'); li.dataset.index = i;
+    const id = marked(o.id, q); id.className = 'sg-id';
+    const terms = document.createElement('span'); terms.className = 'sg-terms';
+    terms.textContent = added.has(o.id) ? '' : (o.terms ? `${o.terms.toLocaleString()} terms` : '');
+    if (added.has(o.id)) { const a = document.createElement('span'); a.className = 'sg-added'; a.textContent = 'added'; terms.append(a); }
+    const title = marked(o.title, q); title.className = 'sg-title';
+    if (o.description) li.title = o.description;
+    li.append(id, terms, title);
+    return li;
+  }));
+  highlightSuggestion();
+  openSuggest(true);
+}
+
+function openSuggest(open) {
+  document.getElementById('ontSuggest').hidden = !open;
+  document.getElementById('ontId').setAttribute('aria-expanded', String(open));
+}
+
+function highlightSuggestion() {
+  const input = document.getElementById('ontId');
+  document.querySelectorAll('#ontSuggest [role="option"]').forEach((li) => {
+    const on = +li.dataset.index === suggestActive;
+    li.setAttribute('aria-selected', String(on));
+    if (on) { li.scrollIntoView({ block: 'nearest' }); input.setAttribute('aria-activedescendant', li.id); }
+  });
+  if (suggestActive < 0) input.removeAttribute('aria-activedescendant');
+}
+
+function pickSuggestion(i) {
+  const o = suggestItems[i];
+  if (!o) return;
+  const input = document.getElementById('ontId');
+  input.value = o.id;
+  openSuggest(false);
+  const status = document.getElementById('ontStatus');
+  status.classList.remove('error');
+  status.textContent = `${o.title}${o.terms ? `, ${o.terms.toLocaleString()} terms` : ''}. Press Link to connect it.`;
+}
+
+function initOntologySuggest() {
+  const input = document.getElementById('ontId');
+  const list = document.getElementById('ontSuggest');
+  input.addEventListener('focus', showSuggestions);
+  input.addEventListener('input', showSuggestions);
+  input.addEventListener('keydown', (e) => {
+    const open = !list.hidden;
+    if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+      if (!open) { showSuggestions(); e.preventDefault(); return; }
+      if (!suggestItems.length) return;
+      const step = e.key === 'ArrowDown' ? 1 : -1;
+      suggestActive = (suggestActive + step + suggestItems.length) % suggestItems.length;
+      highlightSuggestion();
+      e.preventDefault();
+    } else if (e.key === 'Enter' && open && suggestActive >= 0) {
+      // first Enter picks the suggestion; the next one submits
+      pickSuggestion(suggestActive);
+      e.preventDefault();
+    } else if (e.key === 'Escape' && open) {
+      openSuggest(false);
+      e.preventDefault();
+    }
+  });
+  input.addEventListener('blur', () => setTimeout(() => openSuggest(false), 120));
+  // mousedown keeps focus in the box, so blur does not close the list before the click lands
+  list.addEventListener('mousedown', (e) => {
+    e.preventDefault();
+    const li = e.target.closest('[role="option"]');
+    if (li) pickSuggestion(+li.dataset.index);
+  });
+}
+
+// ─── Layout: panes and splitter (as in the explorer) ─────────────────────────
+async function setPane(mode) {
+  pane = mode;
+  document.querySelectorAll('.pane-toggle-btn').forEach((b) => b.classList.toggle('active', b.dataset.pane === mode));
+  const c = document.getElementById('splitContainer');
+  c.className = 'split-container mode-' + mode;
+  requestAnimationFrame(() => {
+    if (map) map.invalidateSize();
+    if (cy) cy.resize();
+  });
+  if (mode === 'table') await loadTableData();
+}
+
+function initSplitter() {
+  const splitter = document.getElementById('splitter');
+  const container = document.getElementById('splitContainer');
+  const mapPane = document.getElementById('mapPane'), graphPane = document.getElementById('graphPane');
+  let dragging = false;
+  splitter.addEventListener('pointerdown', (e) => { dragging = true; splitter.classList.add('dragging'); splitter.setPointerCapture(e.pointerId); });
+  splitter.addEventListener('pointermove', (e) => {
+    if (!dragging) return;
+    const box = container.getBoundingClientRect();
+    const share = Math.min(0.85, Math.max(0.15, (e.clientY - box.top) / box.height));
+    mapPane.style.flex = `1 1 ${share * 100}%`;
+    graphPane.style.flex = `1 1 ${(1 - share) * 100}%`;
+    if (map) map.invalidateSize();
+    if (cy) cy.resize();
+  });
+  const stop = () => { if (dragging) { dragging = false; splitter.classList.remove('dragging'); } };
+  splitter.addEventListener('pointerup', stop);
+  splitter.addEventListener('pointercancel', stop);
+}
+
+// ─── Events ──────────────────────────────────────────────────────────────────
 function setupEventListeners() {
+  initOntologySuggest();
   document.getElementById('searchInput').addEventListener('input', () => {
     clearTimeout(searchDebounce);
     searchDebounce = setTimeout(applyFilters, 300);
   });
-
-  document.querySelectorAll('.cat-filter, .ont-filter').forEach(cb => {
-    cb.addEventListener('change', applyFilters);
-  });
-
+  document.querySelectorAll('.cat-filter').forEach((cb) => cb.addEventListener('change', applyFilters));
   const slider = document.getElementById('confSlider');
-  slider.addEventListener('input', () => {
-    document.getElementById('confValue').textContent = (+slider.value).toFixed(2);
-    applyFilters();
+  slider.addEventListener('input', () => { setText('confValue', (+slider.value).toFixed(2)); });
+  slider.addEventListener('change', applyFilters);
+  const limit = document.getElementById('limitSlider');
+  limit.addEventListener('input', () => { setText('limitValue', limit.value); });
+  limit.addEventListener('change', applyFilters);
+  document.querySelectorAll('.pane-toggle-btn').forEach((b) => b.addEventListener('click', () => setPane(b.dataset.pane)));
+  document.getElementById('btnRefresh').addEventListener('click', async () => { await loadOntologies(); await loadStats(); await initGraph(); });
+  document.getElementById('detailClose').addEventListener('click', () => { hideDetail(); clearHighlight(); });
+  document.getElementById('detailContent').addEventListener('click', (e) => {
+    const b = e.target.closest('[data-show-map]');
+    if (b) showTermOnMap(b.dataset.showMap);
+  });
+  document.getElementById('ontForm').addEventListener('submit', (e) => {
+    e.preventDefault();
+    const id = document.getElementById('ontId').value.trim().toLowerCase();
+    const cats = [document.getElementById('ontHabitats').checked && 'habitat', document.getElementById('ontSpecies').checked && 'species'].filter(Boolean);
+    const status = document.getElementById('ontStatus');
+    if (!id) { status.textContent = 'Type an ontology id, such as uberon.'; status.classList.add('error'); return; }
+    if (!cats.length) { status.textContent = 'Pick habitats, species or both.'; status.classList.add('error'); return; }
+    startLink(id, cats);
   });
 
-  const limitSlider = document.getElementById('limitSlider');
-  limitSlider.addEventListener('input', () => {
-    document.getElementById('limitValue').textContent = limitSlider.value;
-    applyFilters();
+  const mapSearch = document.getElementById('mapSearch');
+  mapSearch.addEventListener('input', searchMapTerms);
+  mapSearch.addEventListener('focus', () => { if (!mapSearch.value) searchMapTerms(); });
+  mapSearch.addEventListener('keydown', (e) => {
+    if ((e.key === 'ArrowDown' || e.key === 'ArrowUp') && mapItems.length) {
+      mapActive = (mapActive + (e.key === 'ArrowDown' ? 1 : -1) + mapItems.length) % mapItems.length;
+      highlightMapItem();
+      e.preventDefault();
+    } else if (e.key === 'Enter' && mapActive >= 0 && mapItems[mapActive]) {
+      pickMapItem(mapItems[mapActive].id);
+      e.preventDefault();
+    } else if (e.key === 'Escape') {
+      document.getElementById('mapResults').replaceChildren();
+      mapItems = []; mapActive = -1;
+    }
   });
-
-  document.querySelectorAll('.view-tab').forEach(tab => {
-    tab.addEventListener('click', () => setView(tab.dataset.view));
+  // mousedown, so the pick lands before the box loses focus
+  document.getElementById('mapResults').addEventListener('mousedown', (e) => {
+    const r = e.target.closest('[data-term]');
+    if (r) { e.preventDefault(); pickMapItem(r.dataset.term); }
   });
-  document.getElementById('btnRefresh').addEventListener('click', initGraph);
-
-  let mapSearchDebounce = null;
-  document.getElementById('mapSearch').addEventListener('input', () => {
-    clearTimeout(mapSearchDebounce);
-    mapSearchDebounce = setTimeout(searchMapTerms, 250);
-  });
-  document.getElementById('lyrSites').addEventListener('change', e => toggleMapLayer('sites', e.target.checked));
-  document.getElementById('lyrSamples').addEventListener('change', e => toggleSamples(e.target.checked));
-
-  document.querySelectorAll('.data-table th[data-sort]').forEach(th => {
-    th.addEventListener('click', () => {
-      const col = th.dataset.sort;
-      if (sortColumn === col) sortAsc = !sortAsc;
-      else { sortColumn = col; sortAsc = true; }
-      renderTable();
-    });
+  document.getElementById('lyrSites').addEventListener('change', (e) => toggleMapLayer('sites', e.target.checked));
+  document.getElementById('lyrSamples').addEventListener('change', (e) => toggleSamples(e.target.checked));
+  document.getElementById('mapSelected').addEventListener('change', (e) => {
+    const t = e.target.closest('[data-layer]');
+    if (t) toggleMapLayer(t.dataset.layer, t.checked);
   });
 }
 
-async function applyFilters() {
-  showLoading(true);
-  try {
-    const params = buildParams();
-    const r = await fetch('/api/graph?' + params);
-    const data = await r.json();
-    if (data.data_missing || data.error) return;
-    renderGraph(data.nodes, data.edges);
-    if (viewMode === 'table') await loadTableData();
-  } finally {
-    showLoading(false);
-  }
-}
-
-async function setView(mode) {
-  viewMode = mode;
-  document.querySelectorAll('.view-tab').forEach(t => t.classList.toggle('active', t.dataset.view === mode));
-  document.getElementById('cy').style.display = mode === 'graph' ? 'block' : 'none';
-  document.getElementById('tableView').style.display = mode === 'table' ? 'block' : 'none';
-  document.getElementById('mapView').style.display = mode === 'map' ? 'block' : 'none';
-  if (mode === 'graph' && cy) cy.resize();
-  if (mode === 'table') await loadTableData();
-  if (mode === 'map') {
-    initMap();
-    map.invalidateSize();
-  }
-}
-
-// ─── Map view ─────────────────────────────────────────────────────────────────
+// ─── Map ─────────────────────────────────────────────────────────────────────
 // Habitat and species ranges come from the EU Article 17 report (2019–2024, EEA);
 // species observations from GBIF; protected sites from the Natura 2000 map (EEA).
 const EEA = 'https://bio.discomap.eea.europa.eu/arcgis/rest/services';
@@ -757,7 +991,8 @@ function initMap() {
   if (map) return;
   map = L.map('map', { worldCopyJump: true, zoomControl: false }).setView([54, 15], 4);
   L.control.zoom({ position: 'topright' }).addTo(map);
-  L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Base/MapServer/tile/{z}/{y}/{x}', {
+  const dark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+  L.tileLayer(`https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_${dark ? 'Dark' : 'Light'}_Gray_Base/MapServer/tile/{z}/{y}/{x}`, {
     attribution: 'Base map &copy; Esri', maxZoom: 16,
   }).addTo(map);
   mapLayers.sites = L.tileLayer(EEA + '/ProtectedSites/Natura2000SitesCache/MapServer/tile/{z}/{y}/{x}', {
@@ -775,11 +1010,10 @@ async function toggleSamples(on) {
   initMap();
   if (on && !samplesLoaded) {
     samplesLoaded = true;
-    const r = await fetch('/api/geo/samples');
-    const fc = await r.json();
+    const fc = await (await fetch('/api/geo/samples')).json();
     mapLayers.samples = L.geoJSON(fc, {
       pointToLayer: (f, latlng) => L.circleMarker(latlng, {
-        radius: 4, color: '#0d1b2a', weight: 1, fillColor: '#6ae86a', fillOpacity: 0.85,
+        radius: 4, color: cssVar('--bg'), weight: 1, fillColor: '#2e7d32', fillOpacity: 0.85,
       }),
       onEachFeature: (f, layer) => {
         const p = f.properties || {};
@@ -789,31 +1023,109 @@ async function toggleSamples(on) {
           <a href="https://www.ebi.ac.uk/biosamples/samples/${encodeURIComponent(p.accession)}" target="_blank" rel="noopener">${escHtml(p.accession)}</a>`);
       },
     });
-    setText('samplesCount', fc.features.length || 'none');
+    setText('samplesCount', fc.features.length ? fc.features.length.toLocaleString() : 'none');
   }
   toggleMapLayer('samples', on);
 }
 
+// Suggestions as you type, from the first letter. All habitats and species
+// (~1,860) are loaded once and ranked here, so every key press answers at once:
+// names that start with the letters first ("a" -> Alpine rivers, Abies pinsapo…),
+// then a word inside the name, then anywhere. A habitat code works too ("91").
+const MAP_EXAMPLES = ['9130', '7110', '1130', '1150', 'Lucanus cervus', 'Canis lupus', 'Ursus arctos', 'Lynx lynx'];
+const MAP_LIMIT = 12;
+let placeTerms = null;
+let mapItems = [];
+let mapActive = -1;
+
+const habitatName = (t) => (t.label || '').replace(/^\d{2}[0-9A-Z]{2}\s*\*?\s*/, '');
+
+async function loadPlaceTerms() {
+  if (placeTerms) return;
+  try {
+    const data = await (await fetch('/api/terms?category=habitat,species')).json();
+    placeTerms = Array.isArray(data) ? data : [];
+  } catch (e) {
+    console.warn('Term list failed:', e);
+    placeTerms = [];
+  }
+}
+
+function rankPlaceTerms(q) {
+  if (!q) {
+    return MAP_EXAMPLES.map((ex) => placeTerms.find((t) => (t.codes || [])[0] === ex || t.scientific_name === ex)).filter(Boolean);
+  }
+  const scored = [];
+  for (const t of placeTerms) {
+    const name = (t.category === 'habitat' ? habitatName(t) : t.label || '').toLowerCase();
+    const sci = (t.scientific_name || '').toLowerCase();
+    const code = ((t.codes || [])[0] || '').toLowerCase();
+    let score = null;
+    if (name.startsWith(q) || sci.startsWith(q) || (code && code.startsWith(q))) score = 0;
+    else if (name.split(/[\s\-–(,]+/).some((w) => w.startsWith(q)) || sci.split(' ').some((w) => w.startsWith(q))) score = 1;
+    else if (name.includes(q) || sci.includes(q)) score = 2;
+    // one letter means "starts with": nearly every name contains an "a" somewhere
+    if (score !== null && (q.length > 1 || score === 0)) scored.push([score, name, t]);
+  }
+  // within a rank: habitats before species, then alphabetical
+  scored.sort((a, b) => a[0] - b[0] || (a[2].category === b[2].category ? 0 : a[2].category === 'habitat' ? -1 : 1) || a[1].localeCompare(b[1]));
+  return scored.map(([, , t]) => t);
+}
+
 async function searchMapTerms() {
-  const q = document.getElementById('mapSearch').value.trim();
+  const input = document.getElementById('mapSearch');
   const box = document.getElementById('mapResults');
-  if (q.length < 2) { box.innerHTML = ''; return; }
-  const r = await fetch('/api/terms?' + new URLSearchParams({ category: 'habitat,species', search: q }));
-  const terms = (await r.json()).slice(0, 8);
-  box.innerHTML = terms.length ? terms.map(t => `
-    <div class="map-result" onclick="showTermOnMap('${escAttr(t.id)}')">
-      <span class="color-dot" style="background:${t.category === 'habitat' ? '#2E86AB' : '#A23B72'}"></span>
-      ${escHtml(t.label)}
-    </div>`).join('') : '<div class="map-hint">Nothing found.</div>';
+  await loadPlaceTerms();
+  const q = input.value.trim().toLowerCase();
+  const all = rankPlaceTerms(q);
+  mapItems = all.slice(0, MAP_LIMIT);
+  mapActive = mapItems.length ? 0 : -1;
+  const head = document.createElement('div');
+  head.className = 'map-hint';
+  head.textContent = !q ? 'Try one of these, or start typing:'
+    : !all.length ? (q.length === 1 ? `Nothing starts with “${q}”.` : `Nothing starts with or contains “${q}”.`)
+    : all.length > MAP_LIMIT ? `${all.length.toLocaleString()} ${q.length === 1 ? 'start with' : 'match'} “${q}”; showing the first ${MAP_LIMIT}. Keep typing to narrow.` : '';
+  box.replaceChildren(...(head.textContent ? [head] : []), ...mapItems.map((t, i) => {
+    const row = document.createElement('div');
+    row.className = 'map-result'; row.dataset.term = t.id; row.dataset.index = i; row.setAttribute('role', 'option');
+    const sw = document.createElement('span'); sw.className = 'check-swatch';
+    sw.style.background = t.category === 'habitat' ? '#2E86AB' : '#A23B72';
+    const text = document.createElement('span');
+    if (t.category === 'habitat') {
+      const code = document.createElement('span'); code.className = 'muted'; code.textContent = ((t.codes || [])[0] || '') + ' ';
+      text.append(code, marked(habitatName(t), q));
+    } else {
+      const em = marked(t.label, q); em.style.fontStyle = t.scientific_name ? 'italic' : '';
+      text.append(em);
+    }
+    row.append(sw, text);
+    return row;
+  }));
+  highlightMapItem();
+}
+
+function highlightMapItem() {
+  document.querySelectorAll('#mapResults .map-result').forEach((row) => {
+    const on = +row.dataset.index === mapActive;
+    row.classList.toggle('active', on);
+    row.setAttribute('aria-selected', String(on));
+    if (on) row.scrollIntoView({ block: 'nearest' });
+  });
+}
+
+function pickMapItem(termId) {
+  showTermOnMap(termId);
+  focusTermInGraph(termId);
 }
 
 async function showTermOnMap(termId) {
-  if (viewMode !== 'map') await setView('map');
-  document.getElementById('mapResults').innerHTML = '';
+  // keep the graph in view where there is one
+  if (pane === 'graph' || pane === 'table') await setPane('split');
+  initMap();
+  document.getElementById('mapResults').replaceChildren();
   document.getElementById('mapSearch').value = '';
 
-  const r = await fetch(`/api/term/${encodeURIComponent(termId)}`);
-  const { term: t, mappings = [] } = await r.json();
+  const { term: t, mappings = [] } = await (await fetch(`/api/term/${encodeURIComponent(termId)}`)).json();
   if (!t) return;
 
   for (const name of ['range', 'gbif']) {
@@ -840,7 +1152,7 @@ async function showTermOnMap(termId) {
   }
 
   // Observations from GBIF, using the GBIF link the pipeline found
-  const gbifKey = mappings.map(m => (m.target_uri || '').match(/gbif\.org\/species\/(\d+)/)).find(Boolean)?.[1];
+  const gbifKey = mappings.map((m) => (m.target_uri || '').match(/gbif\.org\/species\/(\d+)/)).find(Boolean)?.[1];
   if (gbifKey) {
     mapLayers.gbif = L.tileLayer(
       `https://api.gbif.org/v2/map/occurrence/density/{z}/{x}/{y}@1x.png?taxonKey=${gbifKey}&style=glacier.point`,
@@ -863,7 +1175,7 @@ function renderMapCard(t, { hasRange, gbifKey, rangeCount, gbifCount }) {
   const sub = isSpecies
     ? `<em>${escHtml(t.scientific_name || '')}</em> · species`
     : `Habitat type ${escHtml((t.codes || []).join(', '))}`;
-  const fmt = n => n == null ? '…' : n.toLocaleString();
+  const fmt = (n) => n == null ? '…' : n.toLocaleString();
   let note = '';
   if (rangeCount === 0) {
     note = t.directive === 'birds'
@@ -874,61 +1186,46 @@ function renderMapCard(t, { hasRange, gbifKey, rangeCount, gbifCount }) {
     <div class="map-title">${escHtml(t.label)}</div>
     <div class="map-sub">${sub}</div>
     ${hasRange && rangeCount !== 0 ? `
-      <label class="map-layer-row"><input type="checkbox" checked onchange="toggleMapLayer('range', this.checked)">
+      <label class="map-layer-row"><input type="checkbox" checked data-layer="range">
         EU range and condition <span class="count">${rangeCount == null ? '…' : rangeCount + ' areas'}</span></label>` : ''}
     ${gbifKey ? `
-      <label class="map-layer-row"><input type="checkbox" checked onchange="toggleMapLayer('gbif', this.checked)">
-        <span class="color-dot" style="background:#d6f1ff"></span> GBIF observations <span class="count">${fmt(gbifCount)}</span></label>` : ''}
+      <label class="map-layer-row"><input type="checkbox" checked data-layer="gbif">
+        <span class="check-swatch" style="background:#7fb8d8"></span> GBIF observations <span class="count">${fmt(gbifCount)}</span></label>` : ''}
     ${hasRange && rangeCount !== 0 ? `<div class="map-legend">
       ${STATUS_LEGEND.map(([c, l]) => `<span class="sw" style="background:${c}"></span><span>${l}</span>`).join('')}
     </div>
     <div class="map-note">Range and conservation status as reported by EU countries (Article 17, 2019–2024).</div>` : ''}
     ${note ? `<div class="map-note">${note}</div>` : ''}
-    ${gbifKey ? `<div class="map-note">GBIF count is for Europe. <a style="color:#5ab0e8" href="https://www.gbif.org/occurrence/search?taxon_key=${gbifKey}" target="_blank" rel="noopener">Open in GBIF</a></div>` : ''}`;
+    ${gbifKey ? `<div class="map-note">GBIF count is for Europe. <a href="https://www.gbif.org/occurrence/search?taxon_key=${gbifKey}" target="_blank" rel="noopener">Open in GBIF</a></div>` : ''}`;
 }
 
 async function countArt17(layer, where) {
   try {
     const p = new URLSearchParams({ where, returnCountOnly: true, f: 'json' });
-    const r = await fetch(`${ART17}/${layer}/query?${p}`);
-    return (await r.json()).count ?? null;
+    return (await (await fetch(`${ART17}/${layer}/query?${p}`)).json()).count ?? null;
   } catch { return null; }
 }
 
 async function countGbif(key) {
   try {
-    const r = await fetch(`https://api.gbif.org/v1/occurrence/search?taxonKey=${key}&continent=EUROPE&limit=0`);
-    return (await r.json()).count ?? null;
+    return (await (await fetch(`https://api.gbif.org/v1/occurrence/search?taxonKey=${key}&continent=EUROPE&limit=0`)).json()).count ?? null;
   } catch { return null; }
 }
 
-function sqlStr(s) {
-  return String(s).replace(/'/g, "''");
-}
+function sqlStr(s) { return String(s).replace(/'/g, "''"); }
 
-// ─── UI helpers ───────────────────────────────────────────────────────────────
-function showLoading(on) {
-  document.getElementById('loadingOverlay').classList.toggle('hidden', !on);
+// ─── Helpers ─────────────────────────────────────────────────────────────────
+function showGraphState(state, html) {
+  document.getElementById('graphLoading').hidden = state !== 'loading';
+  document.getElementById('graphError').hidden = state !== 'error';
+  if (state === 'error') document.getElementById('graphErrorText').innerHTML = html;
 }
-
-function showError(msg) {
-  const overlay = document.getElementById('loadingOverlay');
-  overlay.classList.remove('hidden');
-  overlay.innerHTML = `<div class="overlay-error">${msg}</div>`;
-}
-
-function setText(id, val) {
-  const el = document.getElementById(id);
-  if (el) el.textContent = val;
-}
-
+function setText(id, val) { const el = document.getElementById(id); if (el) el.textContent = val; }
 function escHtml(s) {
-  return String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  return String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
 }
-
-function escAttr(s) {
-  return String(s ?? '').replace(/'/g, "\\'");
-}
+// Links come from external data: only http(s) may become an href.
+function safeUrl(u) { return /^https?:\/\//i.test(String(u || '')) ? u : '#'; }
 </script>
 </body>
 </html>

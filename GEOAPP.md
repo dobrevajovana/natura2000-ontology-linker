@@ -105,9 +105,75 @@ ontology likely to hold it: organism/host/serovar to `ncbitaxon`; isolation sour
 description to `envo`; tissue and body site to `uberon`; plant parts to `po`.
 Scientific names additionally go to **Wikidata** via a SPARQL query on P225.
 
-Hits are scored by string similarity against the term label and classified
-`skos:exactMatch` (>=0.95), `skos:closeMatch` (>=0.80) or `skos:relatedMatch`, with
-anything under `GEO_OLS4_MIN_SCORE` discarded. Lookups are de-duplicated across the
+Each hit is classified by evidence first, similarity last. Every rule's
+confidence is the precision its top hit measured on the benchmarks below, so a
+confidence of 0.75 means "right about three times in four":
+
+| rule | match type | confidence | example |
+|---|---|---|---|
+| the text is the term's ID | exact | 1.00 | UBERON:0001988 → feces |
+| label or *exact* synonym (spacing aside) | exact | 0.90 | stool → feces, sea water → seawater |
+| same words bar a plural | close | 0.90 | soils → soil |
+| exact name shared by several terms | close | 0.90 | forest → forest (area), forest (ecosystem) |
+| related synonym | related | 0.85 | droppings → feces |
+| typed narrow / broad synonym | broad / narrow | 0.75 | scat → feces / excreta → feces |
+| ancestor / descendant of the one exact hit | broad / narrow | 0.75 | intestine → serosa of intestine |
+| field branch adds its generic word | close | 0.70 | wetland → wetland area (env_broad_scale) |
+| string similarity alone | related | 0.35 | |
+| the term is the text's head noun | broad | 0.30 | coastal lagoon → lagoon |
+| the term adds a modifier to the text | narrow | 0.15 | sea water → coastal sea water |
+
+String similarity is only precise when the words differ by a plural (13 of 14);
+otherwise it is right about a third of the time ("desert" → "dessert"), so on
+its own it never goes above relatedMatch. The head-noun rules are the weakest
+evidence and are kept only so a reviewer can see them; the hierarchy may
+overrule them. Hits are ranked by confidence.
+
+**MIxS field context.** `env_broad_scale` (and `biome`, `environment (biome)`) is
+searched within ENVO's *biome* branch, `env_medium` (and `environment (material)`)
+within *environmental material*, the way MIxS defines them: that is what tells
+"forest" the biome from "forest" the area, or ENVO's `fecal material` from UBERON's
+`feces`. A label that only adds the branch's generic word ("wetland" → `wetland
+area`, "feces" → `fecal material`) is a closeMatch. Submitters often put
+non-biomes in env_broad_scale, so unless the branch gives an exact or close match
+the whole ontology is searched too. `env_local_scale` stays unrestricted: MIxS
+accepts features and UBERON anatomy there. So `env_local_scale`, `env_medium` and
+`isolation source` try **UBERON** when ENVO has no exact or close match ("colon",
+"lower respiratory tract").
+
+**Cleaning real text.** Submitters' values are messy: "fecal sample from infant
+#7 DOL 29", "Soil CK replicate 1", "p17.W1". Values that look like lab codes are
+skipped in every field except taxon names ("SAR11" is a name). The rest are
+searched on their core words -- tokens with digits, single characters and
+sampling words ("sample", "metagenome", "replicate") dropped, a trailing
+"from ..." phrase cut -- while every hit keeps the submitter's text as
+`matched_value`.
+
+OLS4 is asked for ten rows and the best three by confidence are kept, because
+its own ranking often leaves the exact term out of the top three. Similarity
+hits under `GEO_OLS4_MIN_SCORE` are discarded.
+
+**Hierarchy.** When exactly one hit is an exact match, the other hits that only
+string similarity typed are placed against it using OLS4's `hierarchicalAncestor`
+list (subClassOf *and* part_of, from the v2 class endpoint): an ancestor of the
+exact term becomes a broadMatch — even one too dissimilar to keep otherwise,
+caecum → intestine — and a descendant a narrowMatch, both at 0.75. Partonomy
+counts, so "serosa of intestine" is narrower than "intestine". That costs one
+request for the exact term's ancestors and one per narrow check (at most three,
+the best similarity hits), cached on disk per term; a failed fetch just leaves
+the similarity types. Synonym- and label-derived types are never overruled;
+head-noun guesses are.
+
+**Benchmark.** `python -m validation.benchmark` runs the matcher over curated
+text → ontology mappings: the GOLD → ENVO curated SSSOM (typed predicates, plus
+`owl:differentFrom` rows as known-wrong negatives), the microntology term
+links, and (`--source ena`) real MIxS field text of ENA metagenomes scored
+against their microntology tags, where a hit below a tagged term counts. It reports recall, top-1 accuracy, accuracy per confidence band and a
+predicted-vs-gold match-type table, and writes `data/validation/results.csv` with
+an empty `expert_verdict` column for review. `--field env_broad_scale` (or
+`env_medium`) treats every case as text from that field.
+
+Lookups are de-duplicated across the
 whole run — the same organism appears in many samples and is only ever queried once —
 cached on disk, and never allowed to raise: a dead endpoint degrades to "no extra
 matches", it does not fail the pipeline.

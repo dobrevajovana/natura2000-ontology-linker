@@ -40,7 +40,8 @@ logger = logging.getLogger("natura2000.vector_match")
 
 N2K = Namespace("https://ontology.natura2000.eu/")
 
-TYPE_RANK = {"skos:exactMatch": 3, "skos:closeMatch": 2, "skos:relatedMatch": 1}
+TYPE_RANK = {"skos:exactMatch": 3, "skos:closeMatch": 2, "skos:broadMatch": 2, "skos:narrowMatch": 2,
+             "skos:relatedMatch": 1}
 
 # how each method justifies its mapping, in SSSOM's vocabulary (semapv)
 JUSTIFICATION = {
@@ -104,8 +105,9 @@ class VectorMatcher:
 
 
 def score_to_match_type(score: float, thresholds: dict) -> str | None:
-    if score >= thresholds["exact"]:
-        return "skos:exactMatch"
+    """Similarity alone never earns exactMatch: that needs a shared ID or an exact
+    label, which only the direct linker can show. A vector hit that agrees with
+    such a mapping keeps it exact through merge_mappings."""
     if score >= thresholds["close"]:
         return "skos:closeMatch"
     if score >= thresholds["related"]:
@@ -148,7 +150,8 @@ def save_mappings_ttl(mappings: list[dict], output_path: Path) -> None:
     """SKOS triples, plus an owl:Axiom per mapping so each confidence belongs to one mapping."""
     g = Graph()
     g.bind("n2k", N2K); g.bind("skos", SKOS); g.bind("owl", OWL); g.bind("xsd", XSD)
-    pred = {"skos:exactMatch": SKOS.exactMatch, "skos:closeMatch": SKOS.closeMatch, "skos:relatedMatch": SKOS.relatedMatch}
+    pred = {"skos:exactMatch": SKOS.exactMatch, "skos:closeMatch": SKOS.closeMatch, "skos:broadMatch": SKOS.broadMatch,
+            "skos:narrowMatch": SKOS.narrowMatch, "skos:relatedMatch": SKOS.relatedMatch}
     for m in mappings:
         s, p, o = _source_uri(m), pred.get(m["match_type"], SKOS.relatedMatch), URIRef(m["target_uri"])
         g.add((s, p, o))
@@ -211,7 +214,6 @@ def run_vector_matching(data_dir: str, dry_run: bool = False) -> list[dict]:
         candidates = json.loads((data_path / "envo_candidates.json").read_text(encoding="utf-8"))
 
     thresholds = {
-        "exact": float(os.environ.get("SIMILARITY_EXACT", "0.85")),
         "close": float(os.environ.get("SIMILARITY_CLOSE", "0.70")),
         "related": float(os.environ.get("SIMILARITY_RELATED", "0.55")),
     }

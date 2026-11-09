@@ -61,7 +61,7 @@ class OntologyTerm:
     source: str                    # key into ONTOLOGY_SOURCES, e.g. "ENVO"
     label: str = ""                # human-readable term label
     confidence: float = 1.0        # 1.0 for PURLs supplied by the archive
-    match_type: str = "exactMatch"  # skos exactMatch / closeMatch / relatedMatch
+    match_type: str = "exactMatch"  # skos exact / close / broad / narrow / relatedMatch
     origin: str = "biosamples"     # biosamples | ols4 | wikidata
     matched_value: str = ""        # the raw attribute text that produced it
     matched_field: str = ""        # the attribute name it came from

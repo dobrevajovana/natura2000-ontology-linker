@@ -25,6 +25,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import replace
 from pathlib import Path
 from typing import Callable, Optional
+from urllib.parse import quote
 
 import requests
 
@@ -53,6 +54,29 @@ for _f in _UBERON_FIELDS:
     FIELD_ONTOLOGY_MAP[_f] = "uberon"
 for _f in _PO_FIELDS:
     FIELD_ONTOLOGY_MAP[_f] = "po"
+
+# MIxS pins two of the environment triad to an ENVO branch: env_broad_scale is a
+# biome, env_medium an environmental material. Searching only that branch is what
+# tells "forest" the biome from "forest" the area. env_local_scale stays open --
+# MIxS accepts features there, and UBERON anatomy for host-associated samples.
+# Each branch: (root IRI, generic head words its labels add: "wetland" -> "wetland area").
+ENVO_BRANCHES: dict[str, tuple[str, frozenset[str]]] = {
+    "biome": ("http://purl.obolibrary.org/obo/ENVO_00000428", frozenset({"biome", "area"})),
+    "material": ("http://purl.obolibrary.org/obo/ENVO_00010483", frozenset({"material"})),
+}
+FIELD_BRANCH_MAP = {
+    "env_broad_scale": "biome", "environment (biome)": "biome", "biome": "biome",
+    "env_medium": "material", "environment (material)": "material",
+}
+
+# MIxS accepts UBERON anatomy in env_local_scale and env_medium for
+# host-associated samples ("colon", "lower respiratory tract"), and isolation
+# source is often anatomy too. Those fields try UBERON when ENVO has no exact
+# or close match.
+FIELD_ALSO_MAP = {
+    "env_local_scale": "uberon", "env_medium": "uberon", "isolation source": "uberon",
+    "environment (feature)": "uberon", "environment (material)": "uberon",
+}
 
 # Wikidata (P225 taxon name) only makes sense for genuine scientific names.
 SCIENTIFIC_NAME_FIELDS = {"organism", "scientific_name", "host scientific name"}
@@ -104,6 +128,53 @@ def _looks_like_identifier(value: str) -> bool:
     return False
 
 
+def should_look_up(field: str, value: str, ontology: str) -> bool:
+    """Whether ``value`` from attribute ``field`` is worth an OLS4 request.
+
+    Lab codes turn up in every field, not only free text: real isolation
+    sources include "p17.W1", "29707" and "V000307258.fastq.gz". Taxon fields
+    are spared the identifier screen -- "SAR11" is a name, not a code.
+    """
+    if not value or _is_placeholder(value) or not (3 <= len(value) <= 120):
+        return False
+    if ontology != "ncbitaxon" and _looks_like_identifier(value):
+        return False
+    return True
+
+
+# Words that describe the sampling, not the environment: "fecal sample",
+# "Soil CK replicate 1", "soil metagenome".
+_FILLER_WORDS = {"sample", "samples", "metagenome", "metagenomes", "specimen", "specimens",
+                 "replicate", "replicates", "rep", "isolate", "isolates", "swab", "swabs"}
+
+
+# Botanical shorthand in Natura 2000 names ("Chenopodion rubri p.p.", "Quercus spp."):
+# no ontology holds it, and OLS4 times out on "p.p" (over 40 s, where the same
+# phrase without it answers in 0.6 s), which stalled every link to habitat 3270.
+_BOTANICAL_ABBREVIATIONS = {"p.p", "pp", "s.l", "sl", "s.str", "s.s", "agg", "sp", "spp", "ssp",
+                            "subsp", "var", "cf", "aff", "sensu", "lato", "stricto"}
+
+
+def core_text(value: str) -> str:
+    """The words of ``value`` an ontology can hold.
+
+    Drops tokens carrying digits ("#7", "Hour3-4", "12"), single characters and
+    sampling words, and cuts a trailing "from ..." source phrase: "microbial mat
+    from Paralvinella palmiformis worms" is a microbial mat. "of" phrases are
+    kept -- in "serosa of intestine" both halves matter.
+    """
+    words = []
+    for token in value.split():
+        if token.lower() == "from" and words:
+            break
+        bare = token.strip(".,;:()[]{}'\"-_/")
+        if (len(bare) < 2 or any(c.isdigit() or c == "#" for c in bare) or bare.lower() in _FILLER_WORDS
+                or bare.lower().rstrip(".") in _BOTANICAL_ABBREVIATIONS):
+            continue
+        words.append(bare)
+    return " ".join(words)
+
+
 def _iter_candidate_fields(sample: Sample):
     if sample.organism:
         yield "organism", sample.organism
@@ -149,8 +220,12 @@ def _cache_dir() -> Path:
     return d
 
 
-def _cache_key(value: str, ontology: str, origin: str) -> str:
-    raw = f"{origin}|{ontology}|{value.strip().lower()}".encode("utf-8")
+# Bump when match classification changes, so cached terms are not served with stale types.
+_CACHE_VERSION = 13
+
+
+def _cache_key(value: str, ontology: str, origin: str, branch: str = "") -> str:
+    raw = f"v{_CACHE_VERSION}|{origin}|{ontology}|{branch}|{value.strip().lower()}".encode("utf-8")
     return hashlib.sha256(raw).hexdigest()
 
 
@@ -207,25 +282,251 @@ def _request_json(
 # --- lookups -----------------------------------------------------------------
 
 
-def _ols4_query(query: str, ontology: str, value: str,
-                session: requests.Session) -> list[OntologyTerm]:
-    """Run one OLS4 search, scoring every hit against ``value``, not ``query``.
+def _norm(text: str) -> str:
+    """Lower-case, punctuation and underscores to spaces, whitespace collapsed."""
+    return " ".join("".join(c if c.isalnum() else " " for c in str(text).lower()).split())
 
-    Keeping the score anchored to the original attribute text is what stops a
-    broadened fallback query from being reported as an exact match.
+
+def _str_list(raw) -> list[str]:
+    if not raw:
+        return []
+    if isinstance(raw, str):
+        return [raw]
+    return [x for x in raw if isinstance(x, str)]
+
+
+# In 'serosa of intestine' or 'soil from rice paddy' the head noun comes first,
+# so the trailing words name something else and say nothing about hierarchy.
+_PREPOSITIONS = {"of", "from", "in", "on", "at", "near", "with", "without", "for", "by", "under", "into"}
+
+
+def _ends_with_words(longer: str, shorter: str) -> bool:
+    """True when ``shorter`` is the head noun phrase of ``longer``: 'coastal lagoon' / 'lagoon'."""
+    lw, sw = longer.split(), shorter.split()
+    return (0 < len(sw) < len(lw) and lw[-len(sw):] == sw
+            and not _PREPOSITIONS.intersection(lw))
+
+
+# Confidence per rule, set to the precision each rule's top hit measured on the
+# GOLD and microntology benchmarks (validation/benchmark.py), so a confidence
+# means what it says. String similarity is only precise when the words differ by
+# a plural; otherwise it is right about a third of the time and tops out at
+# relatedMatch. The head-noun rules are the weakest evidence of all and are kept
+# only so a reviewer can see them. "hierarchy" (parent links) was not in that
+# measurement and borrows the typed-synonym value, the other ontology-asserted
+# relation.
+_CONFIDENCE = {
+    "id": 1.0,                  # the text is the term's ID
+    "exact": 0.90,              # label or exact synonym                    90%
+    "plural": 0.90,             # same words bar a plural                   93%
+    "ambiguous": 0.90,          # exact name shared by several terms        7/7
+    "related_synonym": 0.85,    #                                           17/17
+    "synonym": 0.75,            # typed broad / narrow synonym              75%
+    "hierarchy": 0.75,          # ancestor / descendant of the one exact hit
+    "field_head": 0.70,         # 'wetland' -> 'wetland area' in a branch   68%
+    "similarity": 0.35,         # string similarity alone                   36%
+    "head_broad": 0.30,         # 'coastal lagoon' -> 'lagoon'              29%
+    "head_narrow": 0.15,        # 'sea water' -> 'coastal sea water'        12%
+}
+
+# OLS4's own ranking is poor -- for "sea water" ENVO's "sea water" is not in the
+# top 3 -- so fetch more, classify them all, and keep the best few by our ranking.
+_FETCH_ROWS = 10
+_KEEP_HITS = 3
+_TYPE_RANK = {"exactMatch": 4, "closeMatch": 3, "broadMatch": 2, "narrowMatch": 2, "relatedMatch": 1}
+
+
+def classify_hit(value: str, doc: dict, heads: frozenset[str] = frozenset()) -> tuple[str, float] | None:
+    """SKOS match type and confidence for attribute text ``value`` against one OLS4 hit.
+
+    exactMatch needs evidence, not just a high score: the text is the term's
+    label, one of its *exact* synonyms (spacing aside: 'sea water' / 'seawater'),
+    or its ID. Inside a field-restricted ENVO branch, ``heads`` are the generic
+    words its labels add, so 'wetland' in env_broad_scale meeting 'wetland area'
+    is a closeMatch: the field supplies the word, but the names still differ.
+    The ontology's typed synonyms then settle broad and narrow: a narrow synonym
+    means the text names something inside the term ('scat' -> feces), so the
+    term is broader. The head-noun rule covers the rest: 'coastal lagoon' ->
+    lagoon is a broadMatch, 'intestine' -> large intestine a narrowMatch. Only
+    when none of that applies does string similarity decide, and it tops out
+    at relatedMatch -- except for words that differ by a plural only, a
+    closeMatch. Confidences come from :data:`_CONFIDENCE`.
+    """
+    verdict = _classify(value, doc, heads)
+    return verdict[:2] if verdict else None
+
+
+def _classify(value: str, doc: dict, heads: frozenset[str]) -> tuple[str, float, bool] | None:
+    """:func:`classify_hit` plus whether string similarity alone decided the type.
+
+    Only those similarity verdicts may later be overruled by the hierarchy;
+    a type the ontology's synonyms or labels gave is better evidence than a
+    parent link seen from another hit.
+    """
+    v = _norm(value)
+    label = _norm(doc.get("label") or "")
+    exact = {label} | {_norm(s) for s in _str_list(doc.get("exact_synonyms"))}
+    exact.discard("")
+    ids = {_norm(doc.get(k) or "") for k in ("obo_id", "short_form")} - {""}
+
+    vs = " ".join(_singular(w) for w in v.split())   # 'active raised bogs' meets 'bog'
+    if v in ids:
+        mtype, rule = "exactMatch", "id"
+    elif v in exact or v.replace(" ", "") in {e.replace(" ", "") for e in exact}:
+        mtype, rule = "exactMatch", "exact"
+    elif any(_plural_variant(v, e) for e in exact):
+        mtype, rule = "closeMatch", "plural"
+    elif heads and any(e.rsplit(" ", 1)[-1] in heads and e.rsplit(" ", 1)[0] == v for e in exact if " " in e):
+        mtype, rule = "closeMatch", "field_head"
+    elif v in {_norm(s) for s in _str_list(doc.get("narrow_synonyms"))}:
+        mtype, rule = "broadMatch", "synonym"
+    elif v in {_norm(s) for s in _str_list(doc.get("broad_synonyms"))}:
+        mtype, rule = "narrowMatch", "synonym"
+    elif v in {_norm(s) for s in _str_list(doc.get("related_synonyms"))}:
+        mtype, rule = "relatedMatch", "related_synonym"
+    elif any(_ends_with_words(t, e) for t in (v, vs) for e in exact):
+        mtype, rule = "broadMatch", "head_broad"
+    elif any(_ends_with_words(e, t) for t in (v, vs) for e in exact):
+        mtype, rule = "narrowMatch", "head_narrow"
+    else:
+        score = max((difflib.SequenceMatcher(None, v, e).ratio() for e in exact), default=0.0)
+        if score < config.OLS4_MIN_SCORE:
+            return None
+        return "relatedMatch", _CONFIDENCE["similarity"], True
+    # A head-noun guess is weaker than similarity, so the hierarchy may overrule it too.
+    return mtype, _CONFIDENCE[rule], rule in ("head_broad", "head_narrow")
+
+
+def _plural_variant(a: str, b: str) -> bool:
+    """Same words except that some differ by a plural ending: 'soils' / 'soil', 'estuaries' / 'estuary'."""
+    aw, bw = a.split(), b.split()
+    if len(aw) != len(bw) or aw == bw:
+        return False
+    return all(x == y or _plural_of(x, y) or _plural_of(y, x) for x, y in zip(aw, bw))
+
+
+def _plural_of(plural: str, singular: str) -> bool:
+    return (plural in (singular + "s", singular + "es")
+            or (singular.endswith("y") and len(singular) > 2 and plural == singular[:-1] + "ies"))
+
+
+def _singular(word: str) -> str:
+    """A cautious English singular: 'estuaries' -> 'estuary', 'lagoons' -> 'lagoon', 'grass' stays."""
+    w = word.lower()
+    if len(w) > 4 and w.endswith("ies"):
+        return word[:-3] + "y"
+    if len(w) > 4 and w.endswith(("sses", "shes", "ches", "xes")):
+        return word[:-2]
+    if len(w) > 3 and w.endswith("s") and not w.endswith(("ss", "us", "is")):
+        return word[:-1]
+    return word
+
+
+class LookupFailed(Exception):
+    """The endpoint could not be reached -- unlike an empty result, never cached."""
+
+
+# --- hierarchy: broad/narrow from the ontology's parent links -----------------
+
+# OLS4's v2 class endpoint, which lists every ancestor of a term in one response.
+_OLS4_CLASS = config.OLS4_SEARCH.rsplit("/search", 1)[0] + "/v2/ontologies/{ontology}/classes/{iri}"
+
+# Each narrowMatch check costs a request for that hit's ancestors, so only the
+# best few similarity hits are checked -- enough to fill the kept slice.
+_NARROW_CHECKS = _KEEP_HITS
+
+
+def _ols4_ancestors(iri: str, ontology: str, session: requests.Session) -> Optional[frozenset[str]]:
+    """IRIs of every ancestor of ``iri``, or None when OLS4 could not be asked.
+
+    ``hierarchicalAncestor`` rather than ``directAncestor``: it follows part_of
+    as well as subClassOf, and for anatomy and environments partonomy is most
+    of the hierarchy -- caecum is *part of* the large intestine, not a kind of
+    intestine. Ancestor sets are cached on disk like search results; a failed
+    fetch returns None and is not cached, so the next run asks again.
+    """
+    key = _cache_key(iri, ontology, "ols4_ancestors")
+    cached = _cache_read(key)
+    if cached is not None:
+        return frozenset(cached)
+    # OLS4 wants the IRI URL-encoded twice inside the path.
+    url = _OLS4_CLASS.format(ontology=ontology, iri=quote(quote(iri, safe=""), safe=""))
+    headers = {"Accept": "application/json", "User-Agent": config.USER_AGENT}
+    data = _request_json(session, url, params={}, headers=headers, limiter=_ols4_limiter)
+    if not isinstance(data, dict):
+        return None
+    ancestors = _str_list(data.get("hierarchicalAncestor"))
+    _cache_write(key, ancestors)
+    return frozenset(ancestors)
+
+
+def _apply_hierarchy(hits: list[tuple[OntologyTerm, bool]], below: list[OntologyTerm], ontology: str,
+                     session: requests.Session) -> list[OntologyTerm]:
+    """Retype similarity-only hits by their place relative to the one exact hit.
+
+    When the text names exactly one term (the anchor), the other hits OLS4
+    returns are often its relatives with unlike names: for 'intestine', 'large
+    intestine' sits below it. String similarity calls those closeMatch or
+    relatedMatch; the hierarchy says which way they lie. An ancestor of the
+    anchor is broader than the text (broadMatch), a descendant narrower
+    (narrowMatch). Ancestry includes part_of, so 'serosa of intestine' counts
+    as narrower than 'intestine': defensible for locating a sample, though it
+    is a part, not a kind. Exact hits and types decided by synonyms or labels
+    are never touched, and any failed fetch just leaves the hits as they were.
+
+    ``below`` are hits too dissimilar to keep ('caecum' / 'intestine'). The
+    anchor's ancestors are fetched anyway, so testing them costs nothing: one
+    that is an ancestor is kept as a broadMatch, the rest stay dropped.
+    """
+    terms = [t for t, _ in hits]
+    anchors = {t.uri for t in terms if t.match_type == "exactMatch"}
+    if len(anchors) != 1:
+        return terms
+    [anchor] = anchors
+    movable = [i for i, (t, by_similarity) in enumerate(hits) if by_similarity and t.uri != anchor]
+    if not movable and not below:
+        return terms
+
+    above = _ols4_ancestors(anchor, ontology, session) or frozenset()
+    terms += [replace(t, match_type="broadMatch", confidence=_CONFIDENCE["hierarchy"])
+              for t in below if t.uri in above]
+    for i in movable:
+        if terms[i].uri in above:
+            terms[i] = replace(terms[i], match_type="broadMatch", confidence=_CONFIDENCE["hierarchy"])
+    # Narrow needs each candidate's own ancestors, so check only the best few.
+    rest = sorted((i for i in movable if terms[i].match_type != "broadMatch"),
+                  key=lambda i: terms[i].confidence, reverse=True)[:_NARROW_CHECKS]
+    for i in rest:
+        if anchor in (_ols4_ancestors(terms[i].uri, ontology, session) or ()):
+            terms[i] = replace(terms[i], match_type="narrowMatch", confidence=_CONFIDENCE["hierarchy"])
+    return terms
+
+
+def _ols4_query(query: str, ontology: str, value: str,
+                session: requests.Session, branch: str = "") -> list[OntologyTerm]:
+    """Run one OLS4 search, classifying every hit against ``value``, not ``query``.
+
+    Keeping the classification anchored to the original attribute text is what
+    stops a broadened fallback query from being reported as an exact match.
+    ``branch`` (a key of :data:`ENVO_BRANCHES`) limits the search to that subtree.
     """
     params = {
-        "q": query, "ontology": ontology, "rows": 3, "exact": "false",
-        "fieldList": "iri,label,ontology_prefix,short_form,description",
+        "q": query, "ontology": ontology, "rows": _FETCH_ROWS, "exact": "false",
+        "fieldList": "iri,label,ontology_prefix,short_form,obo_id,description,"
+                     "exact_synonyms,narrow_synonyms,broad_synonyms,related_synonyms",
     }
+    heads: frozenset[str] = frozenset()
+    if branch:
+        root, heads = ENVO_BRANCHES[branch]
+        params["allChildrenOf"] = root
     headers = {"Accept": "application/json", "User-Agent": config.USER_AGENT}
     data = _request_json(session, config.OLS4_SEARCH, params=params, headers=headers, limiter=_ols4_limiter)
-    if not data:
-        return []
+    if data is None:
+        raise LookupFailed(f"OLS4 search failed for {query!r} in {ontology}")
 
     docs = ((data.get("response") or {}).get("docs")) or []
-    out: list[OntologyTerm] = []
-    vlow = value.strip().lower()
+    out: list[tuple[OntologyTerm, bool]] = []
+    below: list[OntologyTerm] = []   # too dissimilar, unless the hierarchy vouches for them
     for doc in docs:
         iri = doc.get("iri") or ""
         label = doc.get("label") or doc.get("short_form") or ""
@@ -233,49 +534,131 @@ def _ols4_query(query: str, ontology: str, value: str,
             label = label[0] if label else ""
         if not iri or not label:
             continue
-        score = difflib.SequenceMatcher(None, vlow, str(label).lower()).ratio()
-        if score < config.OLS4_MIN_SCORE:
-            continue
-        match_type = "exactMatch" if score >= 0.95 else "closeMatch" if score >= 0.80 else "relatedMatch"
         curie, source = schema.curie_from_uri(iri)
         if not source:
+            # Not an OBO PURL (GOLD's are w3id.org/gold.vocab/Estuary), so the IRI
+            # does not name its ontology; the one searched does.
+            source = ontology.upper()
+            curie = f"{source}:{curie or iri.rstrip('/').rsplit('/', 1)[-1]}"
+        term = OntologyTerm(uri=iri, curie=curie, source=source, label=str(label),
+                            match_type="relatedMatch", confidence=0.0,
+                            origin="ols4", matched_value=value, matched_field="")
+        verdict = _classify(value, {**doc, "label": label}, heads)
+        if verdict is None:
+            below.append(term)
             continue
-        out.append(OntologyTerm(
-            uri=iri, curie=curie, source=source, label=str(label),
-            confidence=round(score, 4), match_type=match_type, origin="ols4",
-            matched_value=value, matched_field="",
-        ))
-    return out
+        match_type, score, by_similarity = verdict
+        out.append((replace(term, confidence=score, match_type=match_type), by_similarity))
+    # ENVO names several classes "forest" (an area, an ecosystem): when the text
+    # is the exact name of more than one term, the name cannot say which is meant.
+    if len({t.curie for t, _ in out if t.match_type == "exactMatch"}) > 1:
+        out = [(replace(t, match_type="closeMatch", confidence=_CONFIDENCE["ambiguous"]), s)
+               if t.match_type == "exactMatch" else (t, s) for t, s in out]
+    # With one exact hit left, its relatives in the result set get broad/narrow.
+    out = _apply_hierarchy(out, below, ontology, session)
+    # Confidence is calibrated precision, so it ranks; type only breaks ties.
+    out.sort(key=lambda t: (t.confidence, _TYPE_RANK[t.match_type]), reverse=True)
+    return out[:_KEEP_HITS]
 
 
-def ols4_search(value: str, ontology: str, session: requests.Session) -> list[OntologyTerm]:
+def ols4_search(value: str, ontology: str, session: requests.Session, branch: str = "") -> list[OntologyTerm]:
     """Search OLS4 for ``value`` restricted to ``ontology``, scored by label similarity.
 
     OLS4 effectively ANDs the query tokens against term labels, so a descriptive
     phrase such as "coastal lagoon" returns nothing even though ENVO holds
     "lagoon". When the full phrase finds no acceptable hit we retry with
     progressively shorter tails, which walks a modifier-plus-head-noun phrase
-    down to its head noun. Those broader hits still score against the original
-    text, so they land as relatedMatch rather than masquerading as exact.
+    down to its head noun. Those broader hits are still classified against the
+    original text, so they land as broadMatch rather than masquerading as exact.
+    With a ``branch``, the search starts in that subtree and widens to the
+    whole ontology unless the subtree gives an exact or close match.
     """
     try:
-        hits = _ols4_query(value, ontology, value, session)
-        if hits:
-            return hits
-
-        tokens = value.strip().split()
-        for start in range(1, min(len(tokens), 4)):
-            tail = " ".join(tokens[start:])
-            if len(tail) < 3:
-                break
-            hits = _ols4_query(tail, ontology, value, session)
-            if hits:
-                logger.debug("ols4 fallback %r -> %r matched %s", value, tail, hits[0].curie)
-                return hits
+        return _ols4_search_or_raise(value, ontology, session, branch)
+    except LookupFailed as exc:
+        logger.warning("%s", exc)
         return []
     except Exception:
         logger.exception("ols4_search failed for value=%r ontology=%r", value, ontology)
         return []
+
+
+def _ols4_search_or_raise(value: str, ontology: str, session: requests.Session,
+                          branch: str = "", also: str = "") -> list[OntologyTerm]:
+    """:func:`ols4_search` that raises :class:`LookupFailed` instead of returning [].
+
+    The search runs on :func:`core_text`, the words an ontology can hold, but
+    every hit keeps the submitter's text as ``matched_value``. ``also`` is a
+    second ontology tried when the first gives no exact or close match.
+    """
+    core = core_text(value)
+    if len(core) < 3:
+        return []
+    hits = _search_with_branch(core, ontology, session, branch)
+    if also and not _has_good_hit(hits):
+        hits = _best_of(hits, _ols4_search_unrestricted(core, also, session))
+    return [replace(h, matched_value=value) for h in hits]
+
+
+def _has_good_hit(hits: list[OntologyTerm]) -> bool:
+    return any(_TYPE_RANK[h.match_type] >= _TYPE_RANK["closeMatch"] for h in hits)
+
+
+def _best_of(first: list[OntologyTerm], second: list[OntologyTerm]) -> list[OntologyTerm]:
+    """Both result sets ranked together by confidence, ``first`` winning ties."""
+    seen = {h.curie for h in first}
+    merged = first + [h for h in second if h.curie not in seen]
+    merged.sort(key=lambda t: (t.confidence, _TYPE_RANK[t.match_type], t.curie in seen), reverse=True)
+    return merged[:_KEEP_HITS]
+
+
+def _search_with_branch(value: str, ontology: str, session: requests.Session, branch: str) -> list[OntologyTerm]:
+    """Search within ``branch``, widening to the whole ontology when it gives nothing good.
+
+    A branch nearly always yields *something* ("park" among biomes finds
+    "business park"), and submitters often put non-biomes in env_broad_scale.
+    So unless the branch gives an exact or close match, the whole ontology is
+    searched too and the best-ranked hits of both are kept, the branch's first.
+    """
+    if not branch:
+        return _ols4_search_unrestricted(value, ontology, session)
+    hits = _ols4_search_unrestricted(value, ontology, session, branch)
+    if _has_good_hit(hits):
+        return hits
+    return _best_of(hits, _ols4_search_unrestricted(value, ontology, session))
+
+
+def _ols4_search_unrestricted(value: str, ontology: str, session: requests.Session,
+                              branch: str = "") -> list[OntologyTerm]:
+    """Full phrase, then in the singular, then shorter tails, within ``branch`` if given.
+
+    OLS4 does not reduce plurals: "Coastal lagoons" and even "lagoons" find
+    nothing in GOLD although it holds "Lagoon". Natura 2000 names are plural
+    almost throughout, so the singular phrase is tried before shortening it;
+    hits are still classified against the original text, as plural variants.
+    """
+    hits = _ols4_query(value, ontology, value, session, branch)
+    if hits:
+        return hits
+    singular = " ".join(_singular(w) for w in value.split())
+    if singular != value:
+        hits = _ols4_query(singular, ontology, value, session, branch)
+        if hits:
+            return hits
+        value_for_tails = singular
+    else:
+        value_for_tails = value
+
+    tokens = value_for_tails.strip().split()
+    for start in range(1, min(len(tokens), 4)):
+        tail = " ".join(tokens[start:])
+        if len(tail) < 3:
+            break
+        hits = _ols4_query(tail, ontology, value, session, branch)
+        if hits:
+            logger.debug("ols4 fallback %r -> %r matched %s", value, tail, hits[0].curie)
+            return hits
+    return []
 
 
 def wikidata_taxon(scientific_name: str, session: requests.Session) -> list[OntologyTerm]:
@@ -315,9 +698,10 @@ def wikidata_taxon(scientific_name: str, session: requests.Session) -> list[Onto
         return []
 
 
-def _cached_lookup(kind: str, value: str, ontology: str, session: requests.Session, use_cache: bool) -> list[OntologyTerm]:
+def _cached_lookup(kind: str, value: str, ontology: str, session: requests.Session, use_cache: bool,
+                   branch: str = "", also: str = "") -> list[OntologyTerm]:
     origin = "ols4" if kind == "ols4" else "wikidata"
-    key = _cache_key(value, ontology, origin)
+    key = _cache_key(value, ontology, origin, f"{branch}+{also}" if also else branch)
     if use_cache:
         cached = _cache_read(key)
         if cached is not None:
@@ -325,7 +709,17 @@ def _cached_lookup(kind: str, value: str, ontology: str, session: requests.Sessi
                 return [OntologyTerm(**d) for d in cached]
             except Exception:
                 pass
-    terms = ols4_search(value, ontology, session) if kind == "ols4" else wikidata_taxon(value, session)
+    if kind == "ols4":
+        try:
+            terms = _ols4_search_or_raise(value, ontology, session, branch, also)
+        except LookupFailed as exc:
+            logger.warning("%s; not caching", exc)
+            return []
+        except Exception:
+            logger.exception("ols4 lookup failed for value=%r ontology=%r", value, ontology)
+            return []
+    else:
+        terms = wikidata_taxon(value, session)
     if use_cache:
         _cache_write(key, [t.to_dict() for t in terms])
     return terms
@@ -359,25 +753,27 @@ def _enrich_impl(samples: list[Sample], use_cache: bool, progress: Callable[[int
     session = requests.Session()
     session.headers.update({"User-Agent": config.USER_AGENT, "Accept": "application/json"})
 
-    ols4_tasks: dict[tuple[str, str], list[tuple[int, str]]] = {}
+    ols4_tasks: dict[tuple[str, str, str, str], list[tuple[int, str]]] = {}
     wikidata_tasks: dict[str, list[tuple[int, str]]] = {}
 
     for i, sample in enumerate(samples):
         covered_sources = {t.source for t in sample.ontology_terms if t.origin == "biosamples"}
         for field, raw_value in _iter_candidate_fields(sample):
             value = (raw_value or "").strip()
-            if not value or _is_placeholder(value) or not (3 <= len(value) <= 120):
-                continue
             fkey = field.strip().lower()
-            if fkey in FREE_TEXT_FIELDS and _looks_like_identifier(value):
-                continue
             ontology = FIELD_ONTOLOGY_MAP.get(fkey)
             if not ontology or ontology not in config.OLS4_ONTOLOGIES:
+                continue
+            if not should_look_up(fkey, value, ontology):
                 continue
             source_key = ONTOLOGY_ID_TO_SOURCE.get(ontology)
             if source_key and source_key in covered_sources:
                 continue
-            ols4_tasks.setdefault((value, ontology), []).append((i, field))
+            branch = FIELD_BRANCH_MAP.get(fkey, "") if ontology == "envo" else ""
+            also = FIELD_ALSO_MAP.get(fkey, "") if ontology == "envo" else ""
+            if also not in config.OLS4_ONTOLOGIES:
+                also = ""
+            ols4_tasks.setdefault((value, ontology, branch, also), []).append((i, field))
             if config.ENRICH_WIKIDATA and fkey in SCIENTIFIC_NAME_FIELDS:
                 wikidata_tasks.setdefault(value, []).append((i, field))
 
@@ -385,14 +781,15 @@ def _enrich_impl(samples: list[Sample], use_cache: bool, progress: Callable[[int
     if total == 0:
         return
     done = 0
-    ols4_results: dict[tuple[str, str], list[OntologyTerm]] = {}
+    ols4_results: dict[tuple[str, str, str, str], list[OntologyTerm]] = {}
     wikidata_results: dict[str, list[OntologyTerm]] = {}
 
     with ThreadPoolExecutor(max_workers=max(1, config.FETCH_WORKERS)) as pool:
         futures = {}
-        for (value, ontology) in ols4_tasks:
-            fut = pool.submit(_cached_lookup, "ols4", value, ontology, session, use_cache)
-            futures[fut] = ("ols4", (value, ontology))
+        for task in ols4_tasks:
+            value, ontology, branch, also = task
+            fut = pool.submit(_cached_lookup, "ols4", value, ontology, session, use_cache, branch, also)
+            futures[fut] = ("ols4", task)
         for value in wikidata_tasks:
             fut = pool.submit(_cached_lookup, "wikidata", value, "", session, use_cache)
             futures[fut] = ("wikidata", value)
@@ -415,8 +812,8 @@ def _enrich_impl(samples: list[Sample], use_cache: bool, progress: Callable[[int
                 except Exception:
                     logger.debug("progress callback raised", exc_info=True)
 
-    for (value, ontology), occurrences in ols4_tasks.items():
-        for term in ols4_results.get((value, ontology), []):
+    for task, occurrences in ols4_tasks.items():
+        for term in ols4_results.get(task, []):
             for (i, field) in occurrences:
                 _add_term(samples[i], replace(term, matched_field=field))
 
