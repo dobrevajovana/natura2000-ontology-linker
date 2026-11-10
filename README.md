@@ -272,7 +272,7 @@ Mappings with `"review": true` are candidates for expert curation, not settled l
 
 ## Visualization
 
-The web app at http://localhost:8080 provides an interactive view of the linked ontology.
+The web app at http://localhost:8080 (with the MFD habitat ontology viewer at http://localhost:8080/mfd/) provides an interactive view of the linked ontology.
 
 **Graph view:**
 - Force-directed layout showing Natura 2000 terms as larger colored nodes
@@ -296,6 +296,49 @@ The web app at http://localhost:8080 provides an interactive view of the linked 
 Click any node to see full term information: label, category, EU code, scientific name, definition, directive/annex, source URL, and all linked external terms with confidence scores and match types.
 
 ---
+
+## MFD Habitat Viewer
+
+A viewer for the Microflora Danica habitat ontology (MFDO). It reads one file,
+[`data/ontology/latest_mfd-habitat-ontology.xlsx`](https://github.com/cmc-aau/mfd_metadata/blob/main/data/ontology/latest_mfd-habitat-ontology.xlsx)
+from cmc-aau/mfd_metadata (GPL-3.0), pinned to one commit in `mfd/build.py`, and uses the same look and layout as the Natura 2000 viewer.
+
+- **Hierarchy** (left panel): the five MFDO levels (sample type > area type > MFDO1 > MFDO2 > MFDO3) with each class's Natura 2000 code. The search box filters it by name or code and keeps the matches in their place in the hierarchy.
+- **Knowledge graph**: each MFD class joined through its Natura 2000 code to this repo's linker output, so MFD class → Natura 2000 habitat → Wikidata / EUNIS / ENVO (and any ontology added in the main viewer), plus MFD's own EUNIS and EMPO classes. It follows the hierarchy selection; "Linked to" and the confidence slider filter it as in the main viewer. MFD codes ending in 00 (1200, 9100, ...) are Natura 2000 group headings, so they have no linker term.
+- **Map**: Natura 2000 protected sites by default; for the selected class, the Danish range and conservation status of its Natura 2000 habitat (EEA Article 17 report 2019–2024), per biogeographic region. A class without a code uses its nearest parent's; a group code shows every habitat type in the group.
+- **Split / Map full / Graph full**, with a draggable splitter, and a detail panel with the class's crosswalk and linked terms.
+
+```bash
+docker compose --profile viz up -d --build    # -> http://localhost:8080/mfd/ (inside the Natura 2000 viewer)
+# or on its own, on port 8095 (same data volume; run one or the other, not both)
+docker compose -f docker-compose.mfd.yml up -d --build    # -> http://localhost:8095
+# or locally
+pip install -r requirements.mfd.txt
+python -m mfd.build --linker-dir data   # downloads the ontology, writes data/mfd/{ontology,graph}.json
+python -m mfd.app
+```
+
+### Expert review of predicted matches
+
+The viewer is also where domain experts validate the **predicted** matches: the Natura 2000 linker's links from the habitats the MFD ontology uses to Wikidata, EUNIS, ENVO and other ontologies (191 with the current pipeline output). MFD's own crosswalk to EMPO, Natura 2000 and EUNIS is curated by the MFD team and is shown as reference, not reviewed.
+
+- Enter your name under **Validation** (remembered in this browser). Every match card in the detail panel has **Correct** (optionally with a corrected match type), **Incorrect** and **Unsure**, and a comment box.
+- **Next to review** opens the next open match: the ones the linker flagged for review first, then the least confident.
+- The graph colours reviewed matches (green correct, red dashed incorrect, amber unsure, orange where reviewers disagree), and **Show predicted matches** filters by review state. Progress is on the left and on the Overview tab.
+
+**Storage.** Reviews are plain files on the computer running the viewer, in `~/natura2000-reviews/` (set `MFD_REVIEWS_DIR` in `.env` to use another folder; Docker Desktop cannot write into OneDrive folders, so keep it outside OneDrive):
+
+- `reviews.jsonl`: the full history. Each line is one decision with reviewer, time, verdict, match type, comment and what was predicted; lines are only ever added, never changed.
+- `mfd-match-reviews.csv`: the current state of every predicted match, rewritten after each decision; opens in Excel.
+
+A match's state is each reviewer's latest decision; if they differ it is marked as disputed. The Overview tab lists every reviewed match, newest first. Back the folder up like any other files. The same files can be downloaded from the viewer:
+
+- `GET /api/reviews/export.csv`: every predicted match with its review state (for a spreadsheet).
+- `GET /api/reviews/export.sssom.tsv`: reviewed matches as SSSOM, `mapping_justification` `semapv:ManualMappingCuration`, reviewers in `author_label`, incorrect matches with `predicate_modifier` `Not`; unsure ones are left out.
+
+There is no login: anyone who can open the page can review under any name, so run it only where the reviewers are trusted.
+
+The ontology and the graph are rebuilt on every start (the download is cached); the compose file mounts the pipeline's volume read-only for the linker output, so restart the viewer after a new pipeline run. Without pipeline output the graph shows the MFD crosswalk only.
 
 ## API Endpoints
 
