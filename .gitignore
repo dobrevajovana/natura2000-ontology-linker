@@ -35,3 +35,14 @@ server*.md
 *.key
 id_rsa*
 .ssh/
+
+# PANGAEA experiment: internal parameter sample and generated results stay local
+experiments/pangaea_sample_20.csv
+experiments/output/
+data_pangaea/
+experiments/output_biome/
+data_biome/
+experiments/.cache/
+~$*
+__pycache__/
+data_species/
