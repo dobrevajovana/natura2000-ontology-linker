@@ -1,0 +1,31 @@
+name,unit,dataset,id_parameter,group,note,pangaea_terms
+Bulimina marginata,#,996108,19301,species,full Latin name,Abundance or Count; Bulimina marginata
+Cibicides lobatulus,#,996108,19307,species,full Latin name,Abundance or Count; Cibicides lobatulus
+Hyalinea balthica,#,996108,19498,species,full Latin name,Abundance or Count; Hyalinea balthica
+Uvigerina peregrina,#,996108,19472,species,full Latin name,Abundance or Count; Uvigerina peregrina
+Melonis barleeanus,#,996108,30196,species,full Latin name,Abundance or Count; Melonis barleeanus
+Cassidulina laevigata,#,996108,19302,species,full Latin name,Abundance or Count; Cassidulina laevigata
+Fissurina marginata,#,996108,19402,species,full Latin name,Abundance or Count; Fissurina marginata
+Cyathea horrida,#,996171,84280,species,full Latin name (plant),Abundance or Count; Cyathea horrida
+Lycopodium australianum,#,996171,166718,species,full Latin name (plant),Abundance or Count
+Elphidium sp.,#,996108,7363,species,genus only,Abundance or Count; Elphidium
+Bolivina sp.,#,996108,48429,species,genus only,Abundance or Count
+Gavelinopsis sp.,#,996108,119494,species,genus only,Abundance or Count; Gavelinopsis
+Dalbergia sp.,#,996171,567583,species,genus only (plant),Abundance or Count; Dalbergia
+Lusatisporis dettmannae,#,996171,567600,species,fossil spore name; may be missing in some resources,Abundance or Count
+Neogloboquadrina atlantica dextral,#,995692,59846,species,Latin name plus a form word (dextral),Abundance or Count
+Tundra,#,981867,,biome,biome name,Abundance or Count; tundra
+Hot desert,#,981867,,biome,temperature word plus habitat,Abundance or Count
+Cold desert,#,981867,,biome,temperature word plus habitat,Abundance or Count
+Cold steppe,#,981867,,biome,temperature word plus habitat,Abundance or Count
+Warm steppe,#,981867,,biome,temperature word plus habitat,Abundance or Count
+Xerophytic shrubland,#,981867,,biome,specialised habitat word,Abundance or Count
+Cold conifer forest,#,981867,,biome,temperature word plus forest type,Abundance or Count
+Cold deciduous forest,#,981867,,biome,temperature word plus forest type,Abundance or Count
+Cold mixed forest,#,981867,,biome,temperature word plus forest type,Abundance or Count
+Cool mixed forest,#,981867,,biome,temperature word plus forest type,Abundance or Count
+Warm mixed forest,#,981867,,biome,temperature word plus forest type,Abundance or Count
+Temperate deciduous forest,#,981867,,biome,climate word plus forest type,Abundance or Count
+Taiga forest,#,981867,,biome,ENVO has no taiga label in the local file,Abundance or Count
+Pioneer forest,#,981867,,biome,successional stage rather than a biome,Abundance or Count
+Biome,#,981867,,biome,very generic name,biome
