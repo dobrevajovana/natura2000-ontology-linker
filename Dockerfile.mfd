@@ -1,0 +1,16 @@
+FROM python:3.11-slim
+
+WORKDIR /app
+
+COPY requirements.mfd.txt .
+RUN pip install --no-cache-dir -r requirements.mfd.txt
+
+COPY mfd/ ./mfd/
+
+RUN mkdir -p /data
+ENV DATA_DIR=/data
+
+EXPOSE 8095
+
+# Downloads and converts the MFD release on first start, then serves it.
+CMD ["python", "-m", "mfd.app"]

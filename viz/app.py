@@ -16,7 +16,8 @@ from concurrent.futures import ThreadPoolExecutor, TimeoutError as FuturesTimeou
 from pathlib import Path
 
 from dotenv import load_dotenv
-from flask import Flask, jsonify, render_template, request
+from flask import Flask, jsonify, redirect, render_template, request
+from werkzeug.middleware.dispatcher import DispatcherMiddleware
 
 # `python viz/app.py` puts viz/ on the path, not the repo root, and the
 # ontology manager reuses geoapp's calibrated OLS4 matcher.
@@ -589,7 +590,22 @@ def api_remove_ontology(ontology: str):
     return _add_cors(jsonify({"removed": ontology}))
 
 
+# ---------------------------------------------------------------------------
+# The MFD habitat ontology viewer (mfd/) lives under /mfd/ on the same server.
+# Its page uses relative URLs, so it works there and standalone alike.
+# ---------------------------------------------------------------------------
+from mfd import app as mfd_app  # noqa: E402
+
+app.wsgi_app = DispatcherMiddleware(app.wsgi_app, {"/mfd": mfd_app.app.wsgi_app})
+
+
+@app.route("/mfd")
+def mfd_slash():
+    return redirect("/mfd/", code=301)
+
+
 if __name__ == "__main__":
     port = int(os.environ.get("VIZ_PORT", 8080))
-    logger.info("Starting visualization server on port %d, data dir: %s", port, DATA_DIR)
-    app.run(host="0.0.0.0", port=port, debug=False)
+    mfd_app.prepare(strict=False)
+    logger.info("Starting visualization server on port %d, data dir: %s (MFD viewer at /mfd/)", port, DATA_DIR)
+    app.run(host="0.0.0.0", port=port, debug=False, threaded=True)

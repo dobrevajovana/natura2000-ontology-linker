@@ -8,12 +8,15 @@ RUN pip install --no-cache-dir -r requirements.viz.txt
 COPY viz/ ./viz/
 # the ontology manager reuses geoapp's calibrated OLS4 matcher
 COPY geoapp/ ./geoapp/
+# the MFD habitat ontology viewer is served at /mfd/
+COPY mfd/ ./mfd/
 
 RUN mkdir -p /data
 
 ENV FLASK_APP=viz/app.py
 ENV DATA_DIR=/data
 ENV GEO_CACHE_DIR=/data/cache
+ENV LINKER_DIR=/data
 
 EXPOSE 8080
 
