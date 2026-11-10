@@ -20,7 +20,7 @@ The results can also be viewed in VERDANT's viewer: `DATA_DIR=./data_pangaea pyt
 ## Files
 
 - `sample_species_biome.csv`: the input, 30 PANGAEA names. Columns: `name`, `group` (species or biome),
-  `pangaea_terms` (what PANGAEA already has for the parameter), `dataset`, `id_parameter`, `difficulty`.
+  `pangaea_terms` (what PANGAEA already has for the parameter), `dataset`, `id_parameter`.
   To test other names, edit this file.
 - `pangaea_links.py`: the script (names -> VERDANT's input file -> VERDANT -> Excel).
 - `output_species_biome/comparison_pangaea_vs_verdant.xlsx`: the result, with VERDANT's own match type for each link.

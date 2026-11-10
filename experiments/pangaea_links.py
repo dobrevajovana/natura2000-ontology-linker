@@ -96,7 +96,7 @@ def write_excel(sample: pd.DataFrame) -> None:
     rows = []
     for term, (_, s) in zip(terms, sample.iterrows()):          # same order as write_terms wrote them
         found = by_term.get(term["id"], [])
-        row = {"name": s["name"], "group": s["group"], "difficulty": s.get("difficulty", "")}
+        row = {"name": s["name"], "group": s["group"]}
         if "pangaea_terms" in sample.columns:
             row.update({"PANGAEA_terms": s["pangaea_terms"],
                         "PANGAEA_has_specific_term": has_specific_term(s["pangaea_terms"])})
