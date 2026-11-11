@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>{{ name }} · validation</title>
+<style>
+  :root { --bg: #f5f6f8; --panel-bg: #fff; --border: #d9dce1; --text: #1b1e23; --text-muted: #5b6270; --accent: #1565c0;
+    --accent-contrast: #fff; --danger: #c62828; --ok: #2e7d32; --input-bg: #fff; --chip-bg: #eef1f5;
+    --st-correct: var(--ok); --st-incorrect: var(--danger); --st-unsure: #b08800; --st-disputed: #c4561a; --warn: #b08800; }
+  @media (prefers-color-scheme: dark) { :root { --bg: #14161a; --panel-bg: #1c1f24; --border: #33383f; --text: #e7e9ec; --text-muted: #9aa1ab;
+    --accent: #5c9cea; --accent-contrast: #0d1117; --danger: #ef5350; --ok: #66bb6a; --input-bg: #22262c; --chip-bg: #262a31;
+    --st-unsure: #e0c341; --st-disputed: #f0975a; --warn: #e0c341; } }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; background: var(--bg); color: var(--text); font: 14px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
+  button, input, select, textarea { font: inherit; color: inherit; } [hidden] { display: none !important; } a { color: var(--accent); }
+  .topbar { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 10px 16px; background: var(--panel-bg); border-bottom: 1px solid var(--border); flex-wrap: wrap; }
+  .topbar h1 { font-size: 16px; margin: 0; } .topbar .acts { display: flex; gap: 12px; font-size: 12px; align-items: center; }
+  .layout { display: flex; height: calc(100vh - 42px); }
+  aside { width: 320px; flex-shrink: 0; background: var(--panel-bg); border-right: 1px solid var(--border); overflow-y: auto; padding: 12px; }
+  main { flex: 1; overflow-y: auto; padding: 14px 18px 40px; min-width: 0; }
+  .group { margin-bottom: 14px; padding-bottom: 14px; border-bottom: 1px solid var(--border); } .group:last-child { border: none; }
+  .group h3, .group > label { display: block; font-size: 12.5px; text-transform: uppercase; letter-spacing: .02em; color: var(--text-muted); margin: 0 0 6px; font-weight: 600; }
+  input[type=text], input[type=search], select { width: 100%; padding: 6px 8px; border: 1px solid var(--border); border-radius: 6px; background: var(--input-bg); margin-bottom: 6px; }
+  .muted { color: var(--text-muted); font-size: 12px; }
+  .btn { padding: 4px 10px; border: 1px solid var(--accent); border-radius: 6px; background: var(--accent); color: var(--accent-contrast); cursor: pointer; font-size: 12.5px; }
+  .val-bar { display: flex; height: 8px; border-radius: 4px; overflow: hidden; background: var(--chip-bg); margin: 6px 0; gap: 2px; } .val-bar span { height: 100%; }
+  .legend { display: grid; grid-template-columns: auto 1fr auto; gap: 2px 8px; font-size: 12.5px; align-items: center; }
+  .legend .num { text-align: right; font-weight: 600; font-variant-numeric: tabular-nums; } .sw { width: 10px; height: 10px; border-radius: 2px; display: inline-block; }
+  .summary { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; margin-bottom: 14px; }
+  .tile { background: var(--panel-bg); border: 1px solid var(--border); border-radius: 8px; padding: 9px 12px; }
+  .tile .k { font-size: 12px; color: var(--text-muted); } .tile .v { font-size: 20px; font-weight: 600; font-variant-numeric: tabular-nums; }
+  .subj { background: var(--panel-bg); border: 1px solid var(--border); border-radius: 8px; margin-bottom: 12px; }
+  .subj-head { padding: 8px 12px; border-bottom: 1px solid var(--border); display: flex; gap: 8px; align-items: baseline; flex-wrap: wrap; }
+  .subj-head .t { font-weight: 600; font-size: 15px; } .subj-head .c { margin-left: auto; }
+  .cards { display: flex; flex-direction: column; gap: 8px; padding: 10px 12px; }
+  .card { border: 1px solid var(--border); border-left: 3px solid var(--border); border-radius: 6px; padding: 8px 10px; }
+  .card.lvl-error { border-left-color: var(--danger); } .card.lvl-warning { border-left-color: var(--warn); } .card.focus { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .card .lbl { font-weight: 600; display: flex; gap: 8px; flex-wrap: wrap; align-items: baseline; } .card .lbl a { font-weight: 400; font-size: 12px; word-break: break-all; }
+  .meta { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; font-size: 12px; color: var(--text-muted); margin-top: 3px; }
+  .pill { font-size: 11px; padding: 1px 7px; border-radius: 10px; border: 1px solid currentColor; } .chip { font-size: 11px; padding: 1px 6px; border-radius: 8px; background: var(--chip-bg); color: var(--text); }
+  .findings { margin: 6px 0 0; padding: 0; list-style: none; font-size: 12.5px; } .findings li { padding-left: 16px; position: relative; margin: 2px 0; }
+  .findings li::before { content: "●"; position: absolute; left: 2px; font-size: 9px; top: 3px; }
+  .findings .error { color: var(--danger); } .findings .warning { color: var(--warn); }
+  .review { margin-top: 8px; padding-top: 8px; border-top: 1px dashed var(--border); font-size: 12.5px; }
+  .rv-status { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; margin-bottom: 6px; }
+  .st-correct { color: var(--st-correct); } .st-incorrect { color: var(--st-incorrect); } .st-unsure { color: var(--st-unsure); } .st-disputed { color: var(--st-disputed); } .st-unreviewed { color: var(--text-muted); }
+  .rv-actions { display: flex; gap: 4px; flex-wrap: wrap; align-items: center; }
+  .rv-actions button { padding: 3px 9px; font-size: 12px; border: 1px solid var(--border); border-radius: 6px; background: var(--panel-bg); cursor: pointer; }
+  .rv-actions button[data-verdict=correct] { color: var(--st-correct); } .rv-actions button[data-verdict=incorrect] { color: var(--st-incorrect); } .rv-actions button[data-verdict=unsure] { color: var(--st-unsure); }
+  .rv-actions select { width: auto; margin: 0; padding: 3px 6px; font-size: 12px; }
+  textarea { width: 100%; margin-top: 6px; min-height: 40px; padding: 6px 8px; border: 1px solid var(--border); border-radius: 6px; background: var(--input-bg); font-size: 12.5px; resize: vertical; }
+  .rv-msg { color: var(--danger); font-size: 12px; margin-top: 4px; } details summary { cursor: pointer; color: var(--text-muted); }
+  .more { margin: 10px 0; }
+  @media (max-width: 900px) { .layout { flex-direction: column; height: auto; } aside { width: auto; border-right: none; border-bottom: 1px solid var(--border); } }
+</style>
+</head>
+<body>
+<header class="topbar"><h1><a href="../../">Validation</a> · <span id="title">{{ name }}</span></h1>
+  <div class="acts"><span id="status" class="muted">Loading…</span><a href="export.csv">CSV</a><a href="export.sssom.tsv">SSSOM</a></div></header>
+<div class="layout">
+  <aside>
+    <section class="group"><h3>Validation</h3>
+      <input type="text" id="reviewer" placeholder="Your name (saved with each review)" maxlength="80" autocomplete="name" aria-label="Reviewer name">
+      <div class="val-bar" id="bar"></div><div class="legend" id="legend"></div>
+      <div style="margin-top:8px"><button class="btn" id="next" type="button">Next to review</button></div>
+      <p class="muted">Mappings the automatic checks flag come first. Every decision is kept, with your name and the time.</p></section>
+    <section class="group"><label for="q">Search</label><input type="search" id="q" placeholder="name, term, ID" autocomplete="off"></section>
+    <section class="group"><h3>Show</h3>
+      <select id="fStatus" aria-label="Review status"><option value="">All decisions</option><option value="unreviewed">Not reviewed yet</option>
+        <option value="correct">Correct</option><option value="incorrect">Incorrect</option><option value="unsure">Unsure</option><option value="disputed">Reviewers disagree</option></select>
+      <select id="fCheck" aria-label="Automatic checks"><option value="">Any check result</option><option value="error">With an error</option><option value="warning">With a warning</option><option value="clean">Nothing found</option></select>
+      <select id="fCat" aria-label="Category"></select>
+      <select id="fSource" aria-label="Source"></select>
+      <select id="fMatch" aria-label="Match type"></select></section>
+    <section class="group"><h3>Automatic checks</h3><div id="checks" class="muted"></div></section>
+  </aside>
+  <main><div class="summary" id="summary"></div><div id="list"></div></main>
+</div>
+<script>
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const url = (u) => /^https?:\/\//i.test(String(u || '')) ? u : null;
+const short = (p) => (p || '').replace('skos:', '');
+const STATUSES = [['correct', 'Correct'], ['incorrect', 'Incorrect'], ['unsure', 'Unsure'], ['disputed', 'Reviewers disagree'], ['unreviewed', 'Not reviewed']];
+const LABEL = Object.fromEntries(STATUSES);
+const TYPES = ['exactMatch', 'closeMatch', 'broadMatch', 'narrowMatch', 'relatedMatch'];
+let maps = [], reviews = {}, summary = {}, focus = null, limit = 60;
+
+try { $('reviewer').value = localStorage.getItem('mfdReviewer') || ''; } catch { /* storage blocked */ }
+$('reviewer').addEventListener('change', (e) => { try { localStorage.setItem('mfdReviewer', e.target.value.trim()); } catch { /* storage blocked */ } });
+
+const status = (m) => { const r = reviews[m.key]; return !r ? 'unreviewed' : r.disputed ? 'disputed' : r.verdict; };
+const level = (m) => (m.checks || []).some((f) => f.level === 'error') ? 'error' : (m.checks || []).some((f) => f.level === 'warning') ? 'warning' : 'clean';
+
+async function load() {
+  const out = await (await fetch('api/mappings')).json();
+  if (out.error) { $('list').innerHTML = `<p style="color:var(--danger)">${esc(out.error)}</p>`; $('status').textContent = ''; return; }
+  maps = out.mappings; summary = out.summary;
+  $('status').textContent = `${maps.length} mappings${out.file ? ' · ' + out.file : ''}${out.checking ? ' · checking terms online…' : ''}`;
+  if (out.checking) setTimeout(load, 4000);
+  const opts = (id, all, values) => { const cur = $(id).value; $(id).innerHTML = `<option value="">${all}</option>` + [...values].sort().map((v) => `<option${v === cur ? ' selected' : ''}>${esc(v)}</option>`).join(''); };
+  opts('fCat', 'Any category', new Set(maps.map((m) => m.subject_category).filter(Boolean)));
+  opts('fSource', 'Any source', new Set(maps.map((m) => m.object_source).filter(Boolean)));
+  opts('fMatch', 'Any match type', new Set(maps.map((m) => short(m.predicate_id)).filter(Boolean)));
+  $('fCat').hidden = $('fCat').options.length < 3; $('fSource').hidden = $('fSource').options.length < 3;
+  const codes = summary.by_check || {};
+  $('checks').innerHTML = `${summary.with_errors || 0} with an error, ${summary.with_warnings || 0} with a warning${summary.online ? '' : out.checking ? ' (online checks running)' : ' (offline checks only)'}.`
+    + (Object.keys(codes).length ? '<br>' + Object.entries(codes).map(([k, v]) => `${esc(k)} ${v}`).join(' · ') : '');
+  await loadReviews();
+}
+async function loadReviews() {
+  try { reviews = (await (await fetch('api/reviews')).json()).state || {}; } catch { /* keep the last */ }
+  draw();
+}
+setInterval(() => { if (!document.hidden && !document.activeElement?.closest('.review')) loadReviews(); }, 30000);
+
+function shown(m) {
+  const q = $('q').value.trim().toLowerCase();
+  if (q && ![m.subject_label, m.subject_id, m.object_label, m.object_id, m.verified?.label].some((x) => String(x || '').toLowerCase().includes(q))) return false;
+  if ($('fStatus').value && status(m) !== $('fStatus').value) return false;
+  if ($('fCheck').value && level(m) !== $('fCheck').value) return false;
+  if ($('fCat').value && m.subject_category !== $('fCat').value) return false;
+  if ($('fSource').value && m.object_source !== $('fSource').value) return false;
+  if ($('fMatch').value && short(m.predicate_id) !== $('fMatch').value) return false;
+  return true;
+}
+
+function draw() {
+  const count = Object.fromEntries(STATUSES.map(([k]) => [k, 0]));
+  maps.forEach((m) => count[status(m)]++);
+  const done = maps.length - count.unreviewed;
+  $('bar').innerHTML = STATUSES.filter(([k]) => k !== 'unreviewed' && count[k]).map(([k, l]) => `<span style="width:${100 * count[k] / maps.length}%;background:var(--st-${k})" title="${l}: ${count[k]}"></span>`).join('');
+  $('legend').innerHTML = STATUSES.map(([k, l]) => `<span class="sw" style="background:${k === 'unreviewed' ? 'var(--chip-bg)' : `var(--st-${k})`}"></span><span>${l}</span><span class="num">${count[k]}</span>`).join('');
+  const subjects = new Set(maps.map((m) => m.subject_id)).size;
+  $('summary').innerHTML = [['Mappings', maps.length], ['Names linked', subjects], ['Reviewed', `${done} of ${maps.length}`],
+    ['With an error', summary.with_errors || 0], ['With a warning', summary.with_warnings || 0]].map(([k, v]) => `<div class="tile"><div class="k">${k}</div><div class="v">${v}</div></div>`).join('');
+  const groups = new Map();
+  maps.filter(shown).forEach((m) => { if (!groups.has(m.subject_id)) groups.set(m.subject_id, []); groups.get(m.subject_id).push(m); });
+  const rank = (g) => Math.min(...g.map((m) => ({ error: 0, warning: 1, clean: 2 }[level(m)])));
+  const ordered = [...groups.values()].sort((a, b) => rank(a) - rank(b) || a[0].subject_label.localeCompare(b[0].subject_label));
+  $('list').innerHTML = ordered.length ? ordered.slice(0, limit).map((g) => `<div class="subj"><div class="subj-head"><span class="t">${esc(g[0].subject_label)}</span>
+      ${g[0].subject_label !== g[0].subject_id ? `<span class="muted">${esc(g[0].subject_id)}</span>` : ''}${g[0].subject_category ? `<span class="chip">${esc(g[0].subject_category)}</span>` : ''}
+      <span class="c muted">${g.length} link${g.length > 1 ? 's' : ''}</span></div>
+      <div class="cards">${g.sort((a, b) => (b.confidence ?? 0) - (a.confidence ?? 0)).map(card).join('')}</div></div>`).join('')
+    + (ordered.length > limit ? `<div class="more"><button class="btn" id="more">Show more (${ordered.length - limit} names left)</button></div>` : '')
+    : '<p class="muted">Nothing matches the filters.</p>';
+  $('more')?.addEventListener('click', () => { limit += 60; draw(); });
+}
+
+function card(m) {
+  const r = reviews[m.key], st = status(m), lv = level(m), link = url(m.object_id);
+  const cur = r?.match_type || m.predicate_id;
+  const hist = r?.history?.length ? `<details><summary>History (${r.history.length})</summary><ul class="findings">${r.history.slice().reverse().map((h) =>
+    `<li>${esc(h.time.slice(0, 16).replace('T', ' '))} · ${esc(h.reviewer)}: ${esc(h.verdict)}${h.match_type ? ' as ' + esc(short(h.match_type)) : ''}${h.comment ? ' · ' + esc(h.comment) : ''}</li>`).join('')}</ul></details>` : '';
+  const ctx = Object.entries(m.context || {}).filter(([k]) => k !== 'other_predicates').map(([k, v]) => `${esc(k)}: ${esc(typeof v === 'object' ? JSON.stringify(v) : v)}`).join(' · ');
+  return `<div class="card lvl-${lv}${focus === m.key ? ' focus' : ''}" data-key="${esc(m.key)}">
+    <div class="lbl">${esc(m.object_label || m.verified?.label || m.object_id)} ${link ? `<a href="${esc(link)}" target="_blank" rel="noopener">${esc(m.object_id)}</a>` : `<span class="muted">${esc(m.object_id)}</span>`}</div>
+    <div class="meta"><span class="pill">${esc(short(m.predicate_id) || 'no match type')}</span>
+      ${m.confidence != null ? `<span class="chip">${m.confidence.toFixed(2)}</span>` : ''}${m.object_source ? `<span>${esc(m.object_source)}</span>` : ''}
+      ${m.method ? `<span>· ${esc(m.method)}</span>` : ''}${m.flagged ? '<span>· flagged by the producer</span>' : ''}
+      ${m.verified?.label && m.verified.label !== m.object_label ? `<span>· the source calls it <b>${esc(m.verified.label)}</b></span>` : ''}</div>
+    ${ctx ? `<div class="muted" style="margin-top:3px">${ctx}</div>` : ''}
+    ${(m.checks || []).length ? `<ul class="findings">${m.checks.map((f) => `<li class="${f.level}">${esc(f.message)}</li>`).join('')}</ul>` : ''}
+    <div class="review" data-key="${esc(m.key)}">
+      <div class="rv-status"><span class="pill st-${st}">${LABEL[st]}</span>${r ? `<span class="muted">${esc(r.reviewer)}, ${esc(r.time.slice(0, 10))}${r.match_type && r.match_type !== m.predicate_id ? ' · as ' + esc(short(r.match_type)) : ''}</span>` : ''}</div>
+      ${r?.comment ? `<div class="muted">“${esc(r.comment)}”</div>` : ''}
+      <div class="rv-actions"><button type="button" data-verdict="correct">Correct</button>
+        <select class="rv-type" aria-label="Match type if correct">${TYPES.map((t) => `<option value="skos:${t}"${'skos:' + t === cur ? ' selected' : ''}>${t}${'skos:' + t === m.predicate_id ? ' (predicted)' : ''}</option>`).join('')}</select>
+        <button type="button" data-verdict="incorrect">Incorrect</button><button type="button" data-verdict="unsure">Unsure</button></div>
+      <textarea class="rv-comment" maxlength="2000" placeholder="Comment (optional): why, or what the right term is"></textarea>
+      <div class="rv-msg" hidden></div>${hist}</div></div>`;
+}
+
+$('list').addEventListener('click', async (ev) => {
+  const btn = ev.target.closest('.rv-actions button');
+  if (!btn) return;
+  const box = btn.closest('.review'), msg = box.querySelector('.rv-msg'), reviewer = $('reviewer').value.trim();
+  if (!reviewer) { msg.textContent = 'Enter your name under Validation on the left first.'; msg.hidden = false; $('reviewer').focus(); return; }
+  const m = maps.find((x) => x.key === box.dataset.key), type = box.querySelector('.rv-type').value;
+  const body = { key: m.key, verdict: btn.dataset.verdict, reviewer, comment: box.querySelector('.rv-comment').value,
+    match_type: btn.dataset.verdict === 'correct' && type !== m.predicate_id ? type : null };
+  box.querySelectorAll('button').forEach((b) => b.disabled = true);
+  try {
+    const res = await fetch('api/reviews', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+    const out = await res.json();
+    if (!res.ok) throw new Error(out.error || 'Could not save.');
+    reviews[m.key] = out.state; focus = m.key; document.activeElement?.blur(); draw();
+  } catch (err) { msg.textContent = err.message; msg.hidden = false; box.querySelectorAll('button').forEach((b) => b.disabled = false); }
+});
+$('next').addEventListener('click', () => {
+  const open = maps.filter((m) => status(m) === 'unreviewed')
+    .sort((a, b) => ({ error: 0, warning: 1, clean: 2 }[level(a)]) - ({ error: 0, warning: 1, clean: 2 }[level(b)]) || (a.confidence ?? 1) - (b.confidence ?? 1));
+  if (!open.length) { $('legend').insertAdjacentHTML('beforeend', '<span></span><span class="muted">Everything has been reviewed.</span><span></span>'); return; }
+  ['q', 'fStatus', 'fCheck', 'fCat', 'fSource', 'fMatch'].forEach((id) => $(id).value = '');
+  focus = open[0].key; limit = Math.max(limit, maps.length); draw();
+  document.querySelector(`.card[data-key="${CSS.escape(focus)}"]`)?.scrollIntoView({ block: 'center', behavior: 'smooth' });
+});
+['q', 'fStatus', 'fCheck', 'fCat', 'fSource', 'fMatch'].forEach((id) => $(id).addEventListener('input', () => { limit = 60; draw(); }));
+load();
+</script>
+</body>
+</html>

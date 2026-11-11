@@ -1,0 +1,1039 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Cloud Samples Validation</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/cytoscape/3.28.1/cytoscape.min.js"></script>
+<style>
+  /* Same look as the Natura 2000 and MFD viewers: light and dark from the system setting. */
+  :root {
+    --bg: #f5f6f8; --panel-bg: #ffffff; --border: #d9dce1; --text: #1b1e23; --text-muted: #5b6270;
+    --accent: #1565c0; --accent-contrast: #ffffff; --danger: #c62828; --ok: #2e7d32;
+    --input-bg: #ffffff; --shadow: 0 1px 3px rgba(0, 0, 0, 0.12); --card-bg: rgba(255, 255, 255, 0.95);
+    --chip-bg: #eef1f5; --neutral: #8a919c;
+    /* cloud sample, air sample, NCBITaxon, ENVO; checked with the dataviz palette validator. */
+    --k-cloud: #2a78d6; --k-air: #eda100; --k-ncbitaxon: #6250d6; --k-envo: #3f8f3a;
+    /* MGnify biomes, GOLD paths and CF Standard Names share the fifth hue; shape and label tell them apart. */
+    --k-mgnify: #d6457e; --k-gold: #d6457e; --k-cf: #d6457e; --k-obi: #5b6270;
+    --st-correct: var(--ok); --st-incorrect: var(--danger); --st-unsure: #b08800; --st-disputed: #c4561a;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #14161a; --panel-bg: #1c1f24; --border: #33383f; --text: #e7e9ec; --text-muted: #9aa1ab;
+      --accent: #5c9cea; --accent-contrast: #0d1117; --danger: #ef5350; --ok: #66bb6a;
+      --input-bg: #22262c; --shadow: 0 1px 3px rgba(0, 0, 0, 0.5); --card-bg: rgba(28, 31, 36, 0.95);
+      --chip-bg: #262a31; --neutral: #737b86;
+      --k-cloud: #3987e5; --k-air: #c98500; --k-ncbitaxon: #9085e9; --k-envo: #5aa84f; --k-mgnify: #d95a8e; --k-gold: #d95a8e; --k-cf: #d95a8e; --k-obi: #9aa1ab;
+      --st-unsure: #e0c341; --st-disputed: #f0975a;
+    }
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; height: 100%; background: var(--bg); color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; font-size: 14px; }
+  button, input, select, textarea { font: inherit; color: inherit; }
+  [hidden] { display: none !important; }
+  a { color: var(--accent); }
+
+  .topbar { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 16px;
+    background: var(--panel-bg); border-bottom: 1px solid var(--border); flex-wrap: wrap; }
+  .topbar h1 { font-size: 16px; margin: 0; }
+  .topbar-actions { display: flex; align-items: center; gap: 12px; font-size: 12px; flex-wrap: wrap; }
+  .load-status { color: var(--text-muted); }
+
+  .layout { display: flex; height: calc(100vh - 42px); min-height: 500px; }
+  .panel-controls { width: 340px; min-width: 260px; display: flex; flex-direction: column; background: var(--panel-bg);
+    border-right: 1px solid var(--border); flex-shrink: 0; min-height: 0; }
+  .panel-scroll { overflow-y: auto; padding: 12px; flex: 1; min-height: 0; }
+  .control-group { margin-bottom: 14px; padding-bottom: 14px; border-bottom: 1px solid var(--border); }
+  .control-group:last-child { border-bottom: none; }
+  .control-group > label, .control-group h3 { display: block; font-weight: 600; margin: 0 0 6px 0; font-size: 12.5px;
+    color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.02em; }
+  input[type="search"], input[type="text"], select { width: 100%; padding: 6px 8px; border: 1px solid var(--border); border-radius: 6px; background: var(--input-bg); }
+  input[type="range"] { width: 100%; }
+  .check-list { display: flex; flex-direction: column; gap: 4px; }
+  .check-list label { display: flex; align-items: center; gap: 6px; font-size: 13px; cursor: pointer; }
+  .check-swatch { display: inline-block; width: 10px; height: 10px; border-radius: 2px; flex-shrink: 0; }
+  .muted { color: var(--text-muted); font-size: 12px; }
+  .btn { padding: 6px 12px; border: 1px solid var(--border); border-radius: 6px; background: var(--panel-bg); cursor: pointer; text-decoration: none; }
+  .btn:hover { border-color: var(--accent); }
+  .btn-primary { background: var(--accent); color: var(--accent-contrast); border-color: var(--accent); }
+  .btn-small { padding: 3px 9px; font-size: 12px; }
+  .btn-row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-top: 8px; }
+  .stats-list { display: grid; gap: 4px; margin: 0; }
+  .stats-list > div { display: flex; justify-content: space-between; font-size: 13px; }
+  .stats-list dt { color: var(--text-muted); }
+  .stats-list dd { margin: 0; font-weight: 600; font-variant-numeric: tabular-nums; }
+  .legend-block { display: flex; flex-direction: column; gap: 4px; font-size: 12.5px; }
+  .legend-row { display: flex; align-items: center; gap: 6px; }
+  .legend-node { width: 12px; height: 12px; flex-shrink: 0; }
+  .legend-edge { width: 22px; height: 0; border-top: 2px solid var(--text-muted); flex-shrink: 0; }
+
+  /* Main area */
+  .panel-main { flex: 1; display: flex; flex-direction: column; min-width: 0; }
+  .pane-toggle { display: flex; gap: 6px; padding: 6px 10px; background: var(--panel-bg); border-bottom: 1px solid var(--border); align-items: center; flex-wrap: wrap; }
+  .pane-toggle-btn { padding: 4px 10px; border: 1px solid var(--border); border-radius: 6px; background: var(--panel-bg); cursor: pointer; font-size: 12.5px; }
+  .pane-toggle-btn.active { background: var(--accent); color: var(--accent-contrast); border-color: var(--accent); }
+  .pane-toggle .graph-info { margin-left: auto; font-size: 12px; color: var(--text-muted); }
+  .panes { flex: 1; display: flex; min-height: 0; }
+  .pane { display: none; flex: 1; min-width: 0; min-height: 0; overflow: auto; }
+  .panes[data-mode="overview"] .pane-overview, .panes[data-mode="samples"] .pane-samples { display: block; padding: 20px 24px 32px; }
+  .panes[data-mode="validate"] .pane-list { display: block; flex: 1 1 55%; padding: 14px 16px 32px; }
+  .panes[data-mode="validate"] .pane-graph { display: block; flex: 1 1 45%; border-left: 1px solid var(--border); position: relative; overflow: hidden; }
+  .panes[data-mode="graph"] .pane-graph { display: block; flex: 1 1 100%; position: relative; overflow: hidden; }
+  .panes[data-mode="timeline"] .pane-timeline { display: block; padding: 20px 24px 32px; }
+  .panes[data-mode="air"] .pane-air { display: block; padding: 20px 24px 32px; }
+  /* Setting of an air sample: outdoor, agricultural, indoor (validated categorical order), not stated in grey. */
+  :root { --set-outdoor: var(--k-cloud); --set-agricultural: var(--k-air); --set-indoor: var(--k-ncbitaxon); --set-not-stated: var(--neutral); }
+  #airMap { height: 460px; border: 1px solid var(--border); border-radius: 8px; background: var(--bg); }
+  .air-steps { margin: 8px 0 4px; padding-left: 20px; line-height: 1.6; max-width: 90ch; }
+  .air-steps li { margin-bottom: 2px; }
+  .air-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 14px; }
+  .shared { font-size: 11px; padding: 0 6px; border-radius: 8px; background: var(--chip-bg); border: 1px solid var(--k-cloud); white-space: nowrap; }
+  .map-legend-inline { display: flex; gap: 14px; flex-wrap: wrap; font-size: 12.5px; margin: 8px 0; }
+  .map-legend-inline span { display: inline-flex; gap: 6px; align-items: center; }
+  .tl-wrap { position: relative; background: var(--panel-bg); border: 1px solid var(--border); border-radius: 8px; padding: 8px 8px 4px; }
+  .tl-wrap svg { display: block; width: 100%; height: auto; }
+  .tl-wrap .axis text, .tl-wrap .lane-label { font-size: 11px; fill: var(--text-muted); }
+  .tl-wrap .lane-label { font-weight: 600; font-size: 12px; fill: var(--text); }
+  .tl-wrap .grid { stroke: var(--border); stroke-width: 1; }
+  .tl-wrap .run { cursor: pointer; }
+  .tl-wrap .run circle.mark { stroke: var(--panel-bg); stroke-width: 2; }
+  .tl-wrap .run.sel circle.mark { stroke: var(--text); }
+  .tl-wrap .warn-mark { font-size: 13px; fill: var(--st-disputed); }
+  .date-warn { color: var(--st-disputed); font-size: 12px; white-space: nowrap; }
+  .tl-wrap .pair { stroke: var(--text-muted); stroke-width: 1.5; opacity: .6; }
+  .tl-tip { position: absolute; pointer-events: none; background: var(--card-bg); border: 1px solid var(--border); border-radius: 6px;
+    padding: 6px 9px; font-size: 12px; line-height: 1.45; box-shadow: var(--shadow); white-space: nowrap; z-index: 5; }
+  .tl-legend { display: flex; gap: 16px; flex-wrap: wrap; font-size: 12.5px; margin: 8px 0 14px; align-items: center; }
+  .tl-legend span { display: inline-flex; align-items: center; gap: 6px; }
+  .tl-dot { width: 11px; height: 11px; border-radius: 50%; display: inline-block; }
+  .run-card { margin-top: 14px; background: var(--panel-bg); border: 1px solid var(--border); border-radius: 8px; padding: 12px 14px; }
+  .run-card h3 { margin: 0 0 4px !important; text-transform: none !important; font-size: 15px !important; color: var(--text) !important; letter-spacing: 0 !important; }
+  .term-row { display: grid; grid-template-columns: 90px 1fr auto; gap: 8px; align-items: baseline; padding: 5px 0; border-top: 1px solid var(--border); font-size: 13px; }
+  .term-row:first-of-type { border-top: none; }
+  .term-row .role { color: var(--text-muted); font-size: 12px; }
+  .term-status { font-size: 11px; padding: 1px 7px; border-radius: 10px; border: 1px solid currentColor; }
+  .term-status.confirmed { color: var(--st-correct); } .term-status.suggested { color: var(--text-muted); border-style: dashed; }
+  .term-chips { display: flex; flex-wrap: wrap; gap: 4px; }
+  .term-chip { font-size: 11px; padding: 1px 7px; border-radius: 9px; background: var(--chip-bg); white-space: nowrap; }
+  .term-chip.suggested { background: transparent; border: 1px dashed var(--border); }
+  #cy { width: 100%; height: 100%; background: var(--bg); }
+  .graph-hint { position: absolute; left: 10px; bottom: 10px; z-index: 5; max-width: 360px; padding: 6px 10px; border-radius: 6px;
+    font-size: 12px; line-height: 1.45; color: var(--text-muted); background: var(--card-bg); border: 1px solid var(--border); pointer-events: none; }
+
+  /* Overview and samples */
+  .ov { max-width: 1000px; }
+  .ov h2 { font-size: 18px; margin: 0 0 6px; }
+  .ov h3 { font-size: 12.5px; text-transform: uppercase; letter-spacing: 0.02em; color: var(--text-muted); margin: 26px 0 8px; }
+  .ov p { margin: 0 0 8px; line-height: 1.55; max-width: 76ch; }
+  .chips { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0; }
+  .chip { font-size: 12px; padding: 2px 9px; border-radius: 10px; background: var(--chip-bg); border: 1px solid var(--border); }
+  .tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 10px; }
+  .tile { background: var(--panel-bg); border: 1px solid var(--border); border-radius: 8px; padding: 10px 12px; }
+  .tile .k { font-size: 12px; color: var(--text-muted); display: flex; align-items: center; gap: 6px; }
+  .tile .v { font-size: 22px; font-weight: 600; font-variant-numeric: tabular-nums; margin-top: 2px; }
+  .tile .s { font-size: 12px; color: var(--text-muted); margin-top: 2px; line-height: 1.4; }
+  .ov table { border-collapse: collapse; width: 100%; font-size: 13px; background: var(--panel-bg); border: 1px solid var(--border); border-radius: 8px; overflow: hidden; }
+  .ov th { text-align: left; font-size: 12px; color: var(--text-muted); font-weight: 600; padding: 7px 10px; border-bottom: 1px solid var(--border); white-space: nowrap; }
+  .ov td { padding: 6px 10px; border-bottom: 1px solid var(--border); vertical-align: middle; }
+  .ov tr:last-child td { border-bottom: none; }
+  .ov td.num, .ov th.num { text-align: right; font-variant-numeric: tabular-nums; }
+  .ov tr.group td { background: var(--chip-bg); font-weight: 600; font-size: 12px; }
+  .ov .note { color: var(--text-muted); font-size: 12px; margin-top: 6px; line-height: 1.5; }
+  .table-wrap { overflow-x: auto; }
+  .cov { display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 8px; min-width: 140px; }
+  .cov .bar { height: 6px; border-radius: 3px; background: var(--chip-bg); overflow: hidden; }
+  .cov .bar > span { display: block; height: 100%; background: var(--accent); border-radius: 3px; }
+  .cov .t { font-variant-numeric: tabular-nums; font-size: 12px; min-width: 52px; text-align: right; }
+  code { font-size: 12px; background: var(--chip-bg); padding: 0 4px; border-radius: 4px; }
+  .type-pill { display: inline-flex; align-items: center; gap: 5px; font-size: 12px; }
+  .type-pill::before { content: ""; width: 9px; height: 9px; border-radius: 50%; background: var(--c); }
+
+  /* Validation list */
+  .vgroup { background: var(--panel-bg); border: 1px solid var(--border); border-radius: 8px; margin-bottom: 14px; }
+  .vgroup.focus { border-color: var(--accent); }
+  .vgroup-head { padding: 9px 12px; border-bottom: 1px solid var(--border); cursor: pointer; display: flex; gap: 8px; align-items: baseline; flex-wrap: wrap; }
+  .vgroup-head .f { font-size: 12px; color: var(--text-muted); }
+  .vgroup-head .t { font-weight: 600; font-size: 15px; }
+  .vgroup-head .r { margin-left: auto; font-size: 12px; color: var(--text-muted); font-variant-numeric: tabular-nums; }
+  .vcards { display: flex; flex-direction: column; gap: 8px; padding: 10px 12px; }
+  .mapping-card { border: 1px solid var(--border); border-left: 3px solid var(--card-color, var(--border)); border-radius: 6px; padding: 8px 10px; }
+  .mapping-card.focus { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .mapping-label { font-weight: 600; margin-bottom: 4px; display: flex; gap: 8px; align-items: baseline; flex-wrap: wrap; }
+  .mapping-label a { font-weight: 400; font-size: 12px; }
+  .mapping-meta { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; font-size: 12px; color: var(--text-muted); }
+  .type-badge { font-size: 11px; padding: 1px 7px; border-radius: 10px; border: 1px solid currentColor; }
+  .type-exact { color: var(--ok); } .type-close { color: #b08800; } .type-broad, .type-narrow { color: var(--accent); } .type-related { color: #c4561a; }
+  @media (prefers-color-scheme: dark) { .type-close { color: #e0c341; } .type-related { color: #f0975a; } }
+  .conf-badge { font-size: 11px; padding: 1px 6px; border-radius: 8px; background: var(--chip-bg); font-variant-numeric: tabular-nums; }
+  .graph-badge { font-size: 11px; padding: 1px 7px; border-radius: 10px; background: var(--chip-bg); color: var(--text); }
+  .graph-badge.new { background: transparent; border: 1px dashed var(--text-muted); color: var(--text-muted); }
+
+  /* Review controls (same as the MFD viewer) */
+  .val-bar { display: flex; height: 8px; border-radius: 4px; overflow: hidden; background: var(--chip-bg); margin: 8px 0 6px; gap: 2px; }
+  .val-bar span { display: block; height: 100%; }
+  .val-legend { display: grid; grid-template-columns: auto 1fr auto; gap: 2px 8px; font-size: 12.5px; align-items: center; }
+  .val-legend .num { font-variant-numeric: tabular-nums; text-align: right; font-weight: 600; }
+  .review { margin-top: 8px; padding-top: 8px; border-top: 1px dashed var(--border); font-size: 12.5px; }
+  .rv-status { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin-bottom: 6px; }
+  .rv-pill { font-size: 11px; padding: 1px 8px; border-radius: 10px; border: 1px solid currentColor; font-weight: 600; }
+  .st-correct { color: var(--st-correct); } .st-incorrect { color: var(--st-incorrect); } .st-unsure { color: var(--st-unsure); }
+  .st-disputed { color: var(--st-disputed); } .st-unreviewed { color: var(--text-muted); }
+  .rv-actions { display: flex; gap: 4px; flex-wrap: wrap; align-items: center; }
+  .rv-actions button { padding: 3px 9px; font-size: 12px; border: 1px solid var(--border); border-radius: 6px; background: var(--panel-bg); cursor: pointer; }
+  .rv-actions button:hover { border-color: currentColor; }
+  .rv-actions button[data-verdict="correct"] { color: var(--st-correct); }
+  .rv-actions button[data-verdict="incorrect"] { color: var(--st-incorrect); }
+  .rv-actions button[data-verdict="unsure"] { color: var(--st-unsure); }
+  .rv-actions select { width: auto; padding: 3px 6px; font-size: 12px; }
+  .review textarea { width: 100%; margin-top: 6px; min-height: 44px; padding: 6px 8px; border: 1px solid var(--border); border-radius: 6px;
+    background: var(--input-bg); font-size: 12.5px; resize: vertical; }
+  .review details { margin-top: 6px; }
+  .review summary { cursor: pointer; color: var(--text-muted); }
+  .rv-history { margin: 4px 0 0; padding-left: 16px; color: var(--text-muted); }
+  .rv-msg { color: var(--danger); font-size: 12px; margin-top: 4px; }
+  .empty { color: var(--text-muted); padding: 24px 4px; }
+
+  @media (max-width: 900px) {
+    .layout { flex-direction: column; height: auto; }
+    .panel-controls { width: auto; border-right: none; border-bottom: 1px solid var(--border); max-height: 55vh; }
+    .panes { flex-direction: column; min-height: 640px; }
+    .panes[data-mode="validate"] .pane-graph { border-left: none; border-top: 1px solid var(--border); min-height: 380px; }
+    .panes[data-mode="overview"] .pane-overview, .panes[data-mode="samples"] .pane-samples { padding: 16px; }
+  }
+</style>
+</head>
+<body>
+
+<header class="topbar">
+  <h1 id="pageTitle">Cloud Samples</h1>
+  <div class="topbar-actions">
+    <a id="backLink" href="../" hidden>← Natura 2000 viewer</a>
+    <a id="mfdLink" href="../mfd/" hidden>MFD habitat ontology</a>
+    <span id="loadStatus" class="load-status">Loading…</span>
+    <a href="https://www.ebi.ac.uk/ena/browser/view/PRJEB54740" target="_blank" rel="noopener">Source: ENA PRJEB54740</a>
+  </div>
+</header>
+
+<div class="layout">
+  <aside class="panel-controls">
+    <div class="panel-scroll">
+      <section class="control-group" id="validation">
+        <h3>Validation</h3>
+        <input type="text" id="reviewerName" placeholder="Your name (saved with each review)" maxlength="80" autocomplete="name" aria-label="Reviewer name">
+        <div class="val-bar" id="valBar" role="img"></div>
+        <div class="val-legend" id="valLegend"></div>
+        <label for="sourceFilter" class="muted" style="display:block;margin-top:8px;text-transform:none;font-weight:400">Text from</label>
+        <select id="sourceFilter">
+          <option value="">Everything</option>
+          <option value="study">This study's runs</option>
+          <option value="plan">The metadata plan</option>
+          <option value="air">All air metagenomes in ENA</option>
+        </select>
+        <label for="reviewFilter" class="muted" style="display:block;margin-top:8px;text-transform:none;font-weight:400">Show predicted terms</label>
+        <select id="reviewFilter">
+          <option value="">All</option>
+          <option value="unreviewed">Not reviewed yet</option>
+          <option value="correct">Correct</option>
+          <option value="incorrect">Incorrect</option>
+          <option value="unsure">Unsure</option>
+          <option value="disputed">Reviewers disagree</option>
+        </select>
+        <div class="btn-row">
+          <button class="btn btn-primary btn-small" id="nextReview" type="button">Next to review</button>
+          <a class="muted" href="api/reviews/export.csv">CSV</a>
+          <a class="muted" href="api/reviews/export.sssom.tsv">SSSOM</a>
+        </div>
+        <div class="muted" style="margin-top:6px">Decisions are saved as files on the server with your name and the time. Every decision is kept.</div>
+      </section>
+
+      <section class="control-group">
+        <label for="searchInput">Search</label>
+        <input type="search" id="searchInput" placeholder="text or term, e.g. cloud, ENVO:00002005" autocomplete="off">
+      </section>
+
+      <section class="control-group">
+        <h3>Ontology</h3>
+        <div class="check-list" id="ontoChecks"></div>
+      </section>
+
+      <section class="control-group">
+        <h3>Samples</h3>
+        <div class="check-list" id="typeChecks"></div>
+        <label for="runMode" class="muted" style="display:block;margin-top:8px;text-transform:none;font-weight:400">Runs in the graph</label>
+        <select id="runMode">
+          <option value="group" id="groupOption">Grouped by sample type × DNA / RNA</option>
+          <option value="run">One node per run</option>
+        </select>
+      </section>
+
+      <section class="control-group">
+        <label for="confSlider">Min confidence: <span id="confValue">0.00</span></label>
+        <input type="range" id="confSlider" min="0" max="1" step="0.05" value="0">
+      </section>
+
+      <section class="control-group">
+        <h3>Stats</h3>
+        <dl class="stats-list" id="statsList"></dl>
+      </section>
+
+      <section class="control-group">
+        <h3>Legend</h3>
+        <div class="legend-block" id="legend"></div>
+      </section>
+    </div>
+  </aside>
+
+  <main class="panel-main">
+    <div class="pane-toggle" role="tablist">
+      <button class="pane-toggle-btn active" data-pane="overview">Overview</button>
+      <button class="pane-toggle-btn" data-pane="validate">Validate</button>
+      <button class="pane-toggle-btn" data-pane="graph">Graph</button>
+      <button class="pane-toggle-btn" data-pane="timeline">Timeline</button>
+      <button class="pane-toggle-btn" data-pane="samples">Samples</button>
+      <button class="pane-toggle-btn" data-pane="air">Air metagenomes</button>
+      <span class="graph-info" id="graphInfo"></span>
+    </div>
+    <div class="panes" id="panes" data-mode="overview">
+      <section class="pane pane-overview"><div class="ov" id="overview"></div></section>
+      <section class="pane pane-list" id="listPane"><div id="valList"></div></section>
+      <section class="pane pane-graph"><div id="cy"></div><div class="graph-hint" id="graphHint"></div></section>
+      <section class="pane pane-timeline"><div class="ov" id="timelineView"></div></section>
+      <section class="pane pane-samples"><div class="ov" id="samplesView"></div></section>
+      <section class="pane pane-air"><div class="ov" id="airView" style="max-width:1200px"></div></section>
+    </div>
+  </main>
+</div>
+
+<script>
+const $ = (id) => document.getElementById(id);
+const cssVar = (n) => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+const escHtml = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const safeUrl = (u) => /^https?:\/\//i.test(String(u || '')) ? u : '#';
+const fmt = (n) => n == null ? '–' : Number(n).toLocaleString('en');
+const shortMatch = (m) => (m || '').replace('skos:', '');
+const MATCH_CLASS = { exactMatch: 'type-exact', closeMatch: 'type-close', broadMatch: 'type-broad', narrowMatch: 'type-narrow', relatedMatch: 'type-related' };
+const olsUrl = (uri, kind) => `https://www.ebi.ac.uk/ols4/ontologies/${kind}/classes/${encodeURIComponent(encodeURIComponent(uri))}`;
+
+if (location.pathname.endsWith('/cloud/')) { $('backLink').hidden = false; $('mfdLink').hidden = false; }
+
+// Node kinds: colour carries identity together with shape and a visible label.
+const KINDS = {
+  value: { label: 'Text in the ENA record', color: () => cssVar('--neutral'), shape: 'round-rectangle' },
+  ncbitaxon: { label: 'NCBITaxon term', color: () => cssVar('--k-ncbitaxon'), shape: 'diamond' },
+  envo: { label: 'ENVO term', color: () => cssVar('--k-envo'), shape: 'hexagon' },
+  mgnify: { label: 'MGnify biome', color: () => cssVar('--k-mgnify'), shape: 'pentagon' },
+  gold: { label: 'GOLD ecosystem term', color: () => cssVar('--k-gold'), shape: 'barrel' },
+  cf: { label: 'CF Standard Name', color: () => cssVar('--k-cf'), shape: 'tag' },
+  obi: { label: 'OBI assay', color: () => cssVar('--k-obi'), shape: 'round-diamond' },
+  natura2000: { label: 'Natura 2000 term', color: () => cssVar('--accent'), shape: 'round-triangle' },
+  study: { label: 'ENA study', color: () => cssVar('--text-muted'), shape: 'star' },
+  site: { label: 'Sampling site', color: () => cssVar('--text-muted'), shape: 'vee' },
+};
+const kindOf = (n) => n.kind === 'sample' ? 'sample_' + (n.type || TYPES[0]?.[0]) : (KINDS[n.kind] ? n.kind : n.kind.startsWith('n2k_') ? 'natura2000' : 'value');
+const ONTOS = [['envo', 'ENVO'], ['ncbitaxon', 'NCBITaxon'], ['mgnify', 'MGnify biome'], ['gold', 'GOLD ecosystem'], ['cf', 'CF Standard Names'], ['obi', 'OBI assays']];
+// Sample types come from the data (the word sample names end in); colours by slot.
+let TYPES = [];
+const TYPE_SLOTS = ['--k-cloud', '--k-air'];
+const cap = (t) => t.charAt(0).toUpperCase() + t.slice(1);
+function setTypes(types) {
+  TYPES = types.map((t) => [t, cap(t)]);
+  types.forEach((t, i) => {
+    const slot = TYPE_SLOTS[i] || '--neutral';
+    if (!cssVar(`--k-${t}`)) document.documentElement.style.setProperty(`--k-${t}`, `var(${slot})`);
+    KINDS['sample_' + t] = { label: `${cap(t)} sample`, color: () => cssVar(slot), shape: 'ellipse' };
+  });
+}
+const STATUSES = [['correct', 'Correct'], ['incorrect', 'Incorrect'], ['unsure', 'Unsure'], ['disputed', 'Reviewers disagree'], ['unreviewed', 'Not reviewed']];
+const STATUS_LABEL = Object.fromEntries(STATUSES);
+
+let data = null, graph = null, byId = {}, reviews = {}, cy = null, focusValue = null, focusKey = null;
+const hiddenOntos = new Set(), hiddenTypes = new Set();
+
+Promise.all(['samples', 'graph'].map((n) => fetch(`data/${n}.json`).then((r) => r.ok ? r.json() : null))).then(([s, g]) => {
+  if (!s || !g) { $('loadStatus').textContent = 'No data yet: the build has not run (python -m cloud.build).'; return; }
+  data = s; graph = g;
+  graph.nodes.forEach((n) => byId[n.id] = n);
+  const m = s.meta;
+  setTypes(m.types || []);
+  $('pageTitle').textContent = `${m.plan_title ? 'Cloud Samples' : 'Samples'} · ${m.project}`;
+  document.title = `${m.project} validation`;
+  $('groupOption').textContent = `Grouped: ${TYPES.map(([, l]) => l.toLowerCase()).join(' / ')} × DNA / RNA`;
+  $('loadStatus').textContent = `${m.runs} runs · ${m.predicted} predicted terms`;
+  drawChecks(); drawLegend(); drawStats(); drawOverview(); drawSamples(); drawList();
+  loadReviews();
+}).catch((err) => { $('loadStatus').textContent = 'Could not load the data: ' + err.message; });
+
+// ─── Predicted matches ───────────────────────────────────────────────────────
+const keyOf = (e) => `${e.source}|${e.target}`;
+const predicted = () => graph.edges.filter((e) => e.kind === 'predicted');
+const runsOf = (valueId) => graph.edges.filter((e) => e.kind === 'has_value' && e.target === valueId).map((e) => byId[e.source]);
+function reviewStatus(e) { const r = reviews[keyOf(e)]; return !r ? 'unreviewed' : r.disputed ? 'disputed' : r.verdict; }
+function shown(e) {
+  const t = byId[e.target], v = byId[e.source];
+  if (hiddenOntos.has(t.kind)) return false;
+  // Metadata plan items have no runs yet, so the sample filter leaves them be.
+  const src = $('sourceFilter').value;
+  if (src && src !== (v.air ? 'air' : v.plan ? 'plan' : 'study')) return false;
+  if (!v.plan && !v.air && TYPES.every(([k]) => hiddenTypes.has(k) || !runsOf(v.id).some((s) => s.type === k))) return false;
+  if ((e.confidence ?? 1) < +$('confSlider').value) return false;
+  const f = $('reviewFilter').value;
+  if (f && reviewStatus(e) !== f) return false;
+  const q = $('searchInput').value.trim().toLowerCase();
+  return !q || [v.label, v.field_label, t.label, t.curie, e.query].some((x) => (x || '').toLowerCase().includes(q));
+}
+
+function graphBadge(e) {
+  const t = byId[e.target], where = e.in_graph || [];
+  if (!where.length) return '<span class="graph-badge new" title="Not in our graphs yet; a correct review adds it">New term</span>';
+  return where.map((w) => w === 'natura2000'
+    ? `<span class="graph-badge" title="The Natura 2000 linker already maps habitats or species to this term">In Natura 2000 graph</span>`
+    : `<span class="graph-badge" title="Samples in the BioSample graph (geoapp) already carry this term">In BioSample graph${t.biosample_samples ? ` · ${t.biosample_samples} samples` : ''}</span>`).join(' ');
+}
+
+function cardHtml(e) {
+  const t = byId[e.target], m = shortMatch(e.match);
+  const linked = graph.edges.filter((x) => x.kind === 'linker' && x.target === t.id).map((x) => byId[x.source]);
+  return `<div class="mapping-card${focusKey === keyOf(e) ? ' focus' : ''}" style="--card-color:var(--k-${t.kind})" data-key="${escHtml(keyOf(e))}">
+    <div class="mapping-label">${escHtml(t.label)} <a href="${safeUrl(['envo', 'ncbitaxon', 'gold', 'obi'].includes(t.kind) ? olsUrl(t.url, t.kind) : t.url)}" target="_blank" rel="noopener">${escHtml(t.curie)}</a></div>
+    <div class="mapping-meta">
+      <span class="type-badge ${MATCH_CLASS[m] || ''}">${escHtml(m)}</span>
+      <span class="conf-badge" title="Calibrated: how often this kind of hit was right in the benchmark">${(e.confidence ?? 0).toFixed(2)}</span>
+      <span>${e.method === 'ena_tax_id' ? 'tax_id ENA assigned' : e.method === 'curated' ? 'curated' : `OLS4, searched “${escHtml(e.query)}”`}</span>
+      ${graphBadge(e)}
+    </div>
+    ${linked.length ? `<div class="muted" style="margin-top:4px">Used by: ${linked.map((n) => escHtml(n.label)).join('; ')}</div>` : ''}
+    ${termNotes(t)}
+    ${reviewBlock(e)}
+  </div>`;
+}
+
+function termNotes(t) {
+  const out = [];
+  if (t.kind === 'cf') out.push(`Units ${escHtml(t.units || '?')}${t.cf_version ? ` · CF table v${escHtml(t.cf_version)}` : ''}${t.description ? ` · ${escHtml(t.description.slice(0, 220))}${t.description.length > 220 ? '…' : ''}` : ''}`);
+  if (t.kind === 'mgnify') out.push(`MGnify lineage: ${escHtml(t.lineage)} · the same path as GOLD's, which MGnify's biomes follow`);
+  if (t.kind === 'gold') {
+    const words = graph.edges.filter((e) => e.kind === 'path_word' && e.source === t.id).map((e) => e.target);
+    const envo = graph.edges.filter((e) => e.kind === 'gold_envo' && words.includes(e.source))
+      .map((e) => `${escHtml(byId[e.source].label)} → ${escHtml(byId[e.target].label)} (${escHtml(byId[e.target].curie)}, ${escHtml(shortMatch(e.match))}${e.justification ? ', ' + escHtml(e.justification.replace(/([a-z])([A-Z])/g, '$1 $2').toLowerCase()) : ''})`);
+    out.push(`GOLD path (GOLD ontology in OLS4): ${escHtml(t.lineage)}${envo.length ? ` · gold-ontology's mappings to ENVO: ${envo.join('; ')}` : ''}`);
+  }
+  if (t.kind === 'ncbitaxon' && t.lineage) out.push(`NCBI Taxonomy: ${escHtml(t.lineage)} › <b>${escHtml(t.label)}</b> (${escHtml(t.rank)}, ${escHtml(t.division)})`);
+  return out.map((x) => `<div class="muted" style="margin-top:4px;line-height:1.45">${x}</div>`).join('');
+}
+
+function drawList() {
+  const groups = {};
+  predicted().filter(shown).forEach((e) => (groups[e.source] ||= []).push(e));
+  // This study first, then the metadata plan, then the air metagenomes (most used text first).
+  const rank = (v) => v.air ? 2 : v.plan ? 1 : 0;
+  const order = Object.keys(groups).sort((a, b) => rank(byId[a]) - rank(byId[b]) || byId[a].field_label.localeCompare(byId[b].field_label)
+    || (byId[b].samples || 0) - (byId[a].samples || 0) || byId[a].label.localeCompare(byId[b].label));
+  $('graphInfo').textContent = `${Object.values(groups).flat().length} of ${predicted().length} predicted terms shown`;
+  // Keep the graph beside the list on a text the filters still show.
+  if (!order.includes(focusValue)) focusValue = order[0] || null;
+  if (!order.length) { $('valList').innerHTML = '<div class="empty">No predicted terms match the filters.</div>'; return; }
+  $('valList').innerHTML = order.map((vid) => {
+    const v = byId[vid], runs = runsOf(vid);
+    const types = TYPES.map(([k, l]) => [l, runs.filter((s) => s.type === k).length]).filter(([, n]) => n).map(([l, n]) => `${n} ${l.toLowerCase()}`).join(', ');
+    const cards = groups[vid].sort((a, b) => (b.confidence ?? 0) - (a.confidence ?? 0));
+    return `<div class="vgroup${focusValue === vid ? ' focus' : ''}" data-value="${escHtml(vid)}">
+      <div class="vgroup-head" data-focus="${escHtml(vid)}"><span class="f">${escHtml(v.field_label)}</span><span class="t">“${escHtml(v.label)}”</span>
+        <span class="r">${v.air ? `${fmt(v.samples)} air metagenome samples` : v.plan ? 'no values in ENA yet' : `${runs.length} runs (${types})`}</span></div>
+      <div class="vcards">${cards.map(cardHtml).join('')}</div></div>`;
+  }).join('');
+}
+
+$('valList').addEventListener('click', (ev) => {
+  const btn = ev.target.closest('.rv-actions button');
+  if (btn) { submitReview(btn); return; }
+  const head = ev.target.closest('[data-focus]');
+  if (head) { focusValue = head.dataset.focus; markFocus(); drawGraph(); }
+});
+$('valList').addEventListener('focusin', (ev) => {
+  const g = ev.target.closest('.vgroup');
+  if (g && g.dataset.value !== focusValue) { focusValue = g.dataset.value; markFocus(); drawGraph(); }
+});
+function markFocus() {
+  document.querySelectorAll('.vgroup').forEach((g) => g.classList.toggle('focus', g.dataset.value === focusValue));
+}
+
+// ─── Reviews (same store and rules as the MFD viewer) ────────────────────────
+try { $('reviewerName').value = localStorage.getItem('mfdReviewer') || ''; } catch { /* storage blocked */ }
+$('reviewerName').addEventListener('change', (e) => { try { localStorage.setItem('mfdReviewer', e.target.value.trim()); } catch { /* storage blocked */ } });
+
+async function loadReviews() {
+  try {
+    const res = await fetch('api/reviews');
+    if (!res.ok) return;
+    reviews = (await res.json()).state || {};
+  } catch { return; }
+  reviewsChanged();
+}
+setInterval(() => { if (!document.hidden && !document.activeElement?.closest('.review')) loadReviews(); }, 30000);
+
+function reviewsChanged() {
+  drawProgress();
+  drawReviewedList();
+  if (!document.activeElement?.closest('.review')) drawList();
+  if (cy) cy.edges('[kind="predicted"]').forEach((ed) => ed.data('rv', reviewStatus(ed.data())));
+  // Each run's terms follow the reviews.
+  if ($('panes').dataset.mode === 'graph') drawGraph();
+  if ($('panes').dataset.mode === 'timeline') drawTimeline();
+  if ($('panes').dataset.mode === 'samples') drawSamples();
+}
+
+function progress() {
+  const all = predicted(), count = Object.fromEntries(STATUSES.map(([k]) => [k, 0]));
+  all.forEach((e) => count[reviewStatus(e)]++);
+  const done = all.length - count.unreviewed;
+  const bar = STATUSES.filter(([k]) => k !== 'unreviewed' && count[k]).map(([k, l]) =>
+    `<span style="width:${100 * count[k] / (all.length || 1)}%;background:var(--st-${k})" title="${l}: ${count[k]}"></span>`).join('');
+  const legend = STATUSES.map(([k, l]) => `<span class="check-swatch" style="background:${k === 'unreviewed' ? 'var(--chip-bg);border:1px solid var(--border)' : `var(--st-${k})`}"></span><span>${l}</span><span class="num">${count[k]}</span>`).join('');
+  return { bar, legend, done, total: all.length };
+}
+function drawProgress() {
+  const p = progress();
+  $('valBar').innerHTML = p.bar;
+  $('valBar').setAttribute('aria-label', `${p.done} of ${p.total} predicted terms reviewed`);
+  $('valLegend').innerHTML = p.legend + `<span></span><span class="muted">${p.done} of ${p.total} reviewed</span><span></span>`;
+  if ($('ovValidation')) $('ovValidation').innerHTML = `<div class="k">Reviewed</div><div class="v">${p.done} <span class="muted" style="font-size:14px;font-weight:400">of ${p.total}</span></div><div class="val-bar">${p.bar}</div>`;
+}
+
+function reviewBlock(e) {
+  const key = keyOf(e), r = reviews[key], st = reviewStatus(e);
+  const who = r ? ` ${escHtml(r.reviewer)}, ${escHtml(r.time.slice(0, 10))}` : '';
+  const current = r?.match_type || e.match;
+  const types = ['exactMatch', 'closeMatch', 'broadMatch', 'narrowMatch', 'relatedMatch'];
+  const history = r?.history?.length ? `<details><summary>History (${r.history.length})</summary><ul class="rv-history">${r.history.slice().reverse().map((h) =>
+    `<li>${escHtml(h.time.slice(0, 16).replace('T', ' '))} · ${escHtml(h.reviewer)}: ${escHtml(h.verdict)}${h.match_type ? ' as ' + escHtml(shortMatch(h.match_type)) : ''}${h.comment ? ' · ' + escHtml(h.comment) : ''}</li>`).join('')}</ul></details>` : '';
+  return `<div class="review" data-key="${escHtml(key)}">
+    <div class="rv-status"><span class="rv-pill st-${st}">${STATUS_LABEL[st]}</span><span class="muted">${who}${r?.match_type && r.match_type !== e.match ? ' · as ' + escHtml(shortMatch(r.match_type)) : ''}</span></div>
+    ${r?.comment ? `<div class="muted" style="margin-bottom:6px">“${escHtml(r.comment)}”</div>` : ''}
+    <div class="rv-actions">
+      <button type="button" data-verdict="correct">Correct</button>
+      <select class="rv-type" aria-label="Match type if correct">${types.map((t) => `<option value="skos:${t}"${'skos:' + t === current ? ' selected' : ''}>${t}${'skos:' + t === e.match ? ' (predicted)' : ''}</option>`).join('')}</select>
+      <button type="button" data-verdict="incorrect">Incorrect</button>
+      <button type="button" data-verdict="unsure">Unsure</button>
+    </div>
+    <textarea class="rv-comment" maxlength="2000" placeholder="Comment (optional): why, or what the right term is"></textarea>
+    <div class="rv-msg" hidden></div>
+    ${history}
+  </div>`;
+}
+
+async function submitReview(btn) {
+  const box = btn.closest('.review'), msg = box.querySelector('.rv-msg');
+  const reviewer = $('reviewerName').value.trim();
+  if (!reviewer) { msg.textContent = 'Enter your name under Validation on the left first.'; msg.hidden = false; $('reviewerName').focus(); return; }
+  const key = box.dataset.key, e = predicted().find((x) => keyOf(x) === key);
+  if (!e) { msg.textContent = 'This term is no longer in the data; reload the page.'; msg.hidden = false; return; }
+  const type = box.querySelector('.rv-type').value;
+  const body = { key, verdict: btn.dataset.verdict, reviewer, comment: box.querySelector('.rv-comment').value,
+                 match_type: btn.dataset.verdict === 'correct' && type !== e.match ? type : null };
+  box.querySelectorAll('button').forEach((b) => b.disabled = true);
+  try {
+    const res = await fetch('api/reviews', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+    const out = await res.json();
+    if (!res.ok) throw new Error(out.error || 'Could not save.');
+    reviews[key] = out.state;
+    focusKey = key;
+    document.activeElement?.blur();
+    reviewsChanged();
+  } catch (err) {
+    msg.textContent = err.message; msg.hidden = false;
+    box.querySelectorAll('button').forEach((b) => b.disabled = false);
+  }
+}
+
+function openMatch(e) {
+  setPane('validate');
+  focusKey = keyOf(e); focusValue = e.source;
+  if (!shown(e)) { $('reviewFilter').value = ''; $('searchInput').value = ''; hiddenOntos.clear(); hiddenTypes.clear(); $('confSlider').value = 0; $('confValue').textContent = '0.00'; drawChecks(); }
+  drawList(); drawGraph();
+  document.querySelector(`.mapping-card[data-key="${CSS.escape(focusKey)}"]`)?.scrollIntoView({ block: 'center', behavior: 'smooth' });
+}
+// Unreviewed terms: the most confident first, as those are the quickest to confirm.
+$('nextReview').addEventListener('click', () => {
+  const open = predicted().filter((e) => reviewStatus(e) === 'unreviewed')
+    .sort((a, b) => a.source.localeCompare(b.source) || (b.confidence ?? 0) - (a.confidence ?? 0));
+  if (!open.length) { $('valLegend').insertAdjacentHTML('beforeend', '<span></span><span class="muted">Everything has been reviewed.</span><span></span>'); return; }
+  openMatch(open[0]);
+});
+
+// ─── Overview ────────────────────────────────────────────────────────────────
+function drawOverview() {
+  const m = data.meta, s = data.samples;
+  const dates = s.map((x) => x.start).filter(Boolean).sort();
+  const lib = (k) => s.filter((x) => x.library === k).length;
+  const terms = new Set(predicted().map((e) => e.target));
+  const ontoCount = (k) => [...terms].filter((t) => byId[t].kind === k).length;
+  const site = graph.nodes.find((n) => n.kind === 'site');
+  const themes = m.themes || [];
+  const types = TYPES.map(([k]) => k);
+  const rt = m.record_text || {};
+  const said = Object.values(rt).map((v) => v.map((x) => `<i>${escHtml(x)}</i>`).join(', ')).filter(Boolean).join(' / ');
+  const orgTerms = [...new Set(predicted().filter((e) => byId[e.source].field?.startsWith('organism') && byId[e.target].kind === 'ncbitaxon' && e.match === 'skos:exactMatch' && e.method === 'ols4').map((e) => byId[e.target].label))];
+  const cov = data.coverage.map((g) => `<tr class="group"><td colspan="3">${escHtml(g.group)}</td></tr>` + g.items.map((it) => {
+    const pct = it.of ? Math.round(100 * it.runs / it.of) : 0;
+    return `<tr><td>${escHtml(it.item)}</td><td>${it.ena_fields.length ? it.ena_fields.map((f) => `<code>${escHtml(f)}</code>`).join(' ') : '<span class="muted">no ENA field</span>'}</td>
+      <td>${it.ena_fields.length ? `<div class="cov"><div class="bar"><span style="width:${pct}%"></span></div><span class="t">${it.runs} / ${it.of}</span></div>` : '<span class="muted">to be added outside ENA</span>'}</td></tr>`;
+  }).join('')).join('');
+  $('overview').innerHTML = `
+    <h2>${escHtml(m.plan_title || m.title)}</h2>
+    <p>${escHtml(m.title)} (${escHtml((m.center || '').split(';').pop())}). Every run of
+      <a href="${safeUrl(m.url)}" target="_blank" rel="noopener">${escHtml(m.project)}</a> was read from ENA. The text in its records
+      (environmental context, medium, organism, and the sample type at the end of each sample name: ${types.map((t) => `<i>${escHtml(t)}</i>`).join(', ')}) was searched in OLS4, in ENVO and NCBITaxon,
+      with NCBI Taxonomy lineages, MGnify's biome and GOLD's ecosystem path added. The measurements in the project's metadata plan are linked to CF Standard Names and ENVO.
+      Each hit is a predicted term for experts to confirm or reject under <b>Validate</b>.</p>
+    <div class="chips">${themes.map((t) => `<span class="chip">${escHtml(t)}</span>`).join('')}</div>
+    <h3>The samples</h3>
+    <div class="tiles">
+      <div class="tile"><div class="k">Runs</div><div class="v">${m.runs}</div><div class="s">${types.map((t) => `<span class="type-pill" style="--c:var(--k-${t})">${m.type_counts[t]} ${escHtml(t)}</span>`).join(' · ')}</div></div>
+      <div class="tile"><div class="k">Samplings</div><div class="v">${m.dates} <span class="muted" style="font-size:14px;font-weight:400">× 2 runs</span></div>
+        <div class="s">each sequenced twice: ${lib('metagenome')} DNA runs (metagenome, ADN…) and ${lib('metatranscriptome')} RNA runs (metatranscriptome, ARN…)</div></div>
+      <div class="tile"><div class="k">Sampling dates</div><div class="v">${m.dates}</div><div class="s">${escHtml(dates[0] || '')} to ${escHtml(dates[dates.length - 1] || '')}</div></div>
+      <div class="tile"><div class="k">Site</div><div class="v" style="font-size:16px">${site?.wikidata ? `<a href="${safeUrl(site.wikidata)}" target="_blank" rel="noopener">${escHtml(site.label)}</a>` : escHtml(site?.label || '')}</div>
+        <div class="s">${site?.lat ?? ''} N, ${site?.lon ?? ''} E · ${fmt(site?.altitude)} m${site?.place_type ? ` · ${escHtml(site.place_type)} ${site.distance_km} km away (Wikidata)` : ''}</div></div>
+    </div>
+    <h3>Linking to ENVO and NCBITaxon</h3>
+    <div class="tiles">
+      <div class="tile"><div class="k">Predicted terms</div><div class="v">${m.predicted}</div><div class="s">for ${new Set(predicted().filter((e) => !byId[e.source].plan).map((e) => e.source)).size} texts in the records and ${new Set(predicted().filter((e) => byId[e.source].plan).map((e) => e.source)).size} metadata plan items</div></div>
+      <div class="tile"><div class="k"><span class="check-swatch" style="background:var(--k-envo)"></span>ENVO</div><div class="v">${ontoCount('envo')}</div><div class="s">distinct terms</div></div>
+      <div class="tile"><div class="k"><span class="check-swatch" style="background:var(--k-ncbitaxon)"></span>NCBITaxon</div><div class="v">${ontoCount('ncbitaxon')}</div><div class="s">distinct terms, with their NCBI Taxonomy lineage</div></div>
+      <div class="tile"><div class="k"><span class="check-swatch" style="background:var(--k-cf)"></span>CF Standard Names</div><div class="v">${ontoCount('cf')}</div><div class="s">for the weather and site measurements in the plan</div></div>
+      <div class="tile"><div class="k"><span class="check-swatch" style="background:var(--k-gold)"></span>GOLD ecosystem</div><div class="v">${ontoCount('gold')}</div>
+        <div class="s">${escHtml([...terms].map((t) => byId[t]).find((n) => n.kind === 'gold')?.lineage || '')}, with gold-ontology's (lexical) links to ENVO</div></div>
+      <div class="tile"><div class="k"><span class="check-swatch" style="background:var(--k-mgnify)"></span>MGnify biome</div><div class="v">${ontoCount('mgnify')}</div><div class="s">${escHtml([...terms].map((t) => byId[t]).find((n) => n.kind === 'mgnify')?.lineage || '')}</div></div>
+      ${m.air ? `<div class="tile"><div class="k">Air metagenomes in ENA</div><div class="v">${fmt(m.air.samples)}</div><div class="s">for comparison; ${fmt(m.air.reviewable)} of their texts to review. See the Air metagenomes tab.</div></div>` : ''}
+      <div class="tile"><div class="k">Already in our graphs</div><div class="v">${m.terms - m.new_terms} <span class="muted" style="font-size:14px;font-weight:400">of ${m.terms}</span></div>
+        <div class="s">${m.in_natura2000_graph ? m.in_natura2000_graph + ' in the Natura 2000 graph, the rest' : 'None in the Natura 2000 graph; these are'} in the BioSample graph. ${m.new_terms} are new.</div></div>
+      <div class="tile" id="ovValidation"></div>
+    </div>
+    <p class="note">The records' own environment fields read ${said || '<i>nothing</i>'}, and the organism is ${(m.organisms || []).map((o) => `<i>${escHtml(o)}</i>`).join(', ')}.
+      ${orgTerms.length ? `NCBITaxon names these environments' metagenomes (${orgTerms.map((o) => `<i>${escHtml(o)}</i>`).join(', ')}), so they are offered for review as well.` : ''}</p>
+    <h3>Microbiome repositories</h3>
+    <div class="table-wrap"><table><thead><tr><th>Repository</th><th>This study</th><th>Checked</th></tr></thead><tbody>${(m.repositories || []).map((r) =>
+      `<tr><td><a href="${safeUrl(r.url)}" target="_blank" rel="noopener">${escHtml(r.name)}</a></td><td>${escHtml(r.status)}</td><td class="muted">${escHtml(r.checked)}</td></tr>`).join('')}</tbody></table></div>
+    <h3>Metadata plan and what ENA holds</h3>
+    <div class="table-wrap"><table><thead><tr><th>Item</th><th>ENA field</th><th>Runs with a value</th></tr></thead><tbody>${cov}</tbody></table></div>
+    <p class="note">Meteorological, chemical and wet-lab measurements have no field in these ENA records. They have to come from the project's own tables.
+      The weather and site items already have their terms ready for review (CF Standard Names and ENVO), so those values can be recorded in a standard vocabulary.</p>
+    <h3>Reviewed terms</h3>
+    <div id="reviewedList"></div>`;
+  drawProgress();
+}
+
+function drawReviewedList() {
+  const el = $('reviewedList');
+  if (!el || !graph) return;
+  const done = predicted().filter((e) => reviews[keyOf(e)]).sort((a, b) => reviews[keyOf(b)].time.localeCompare(reviews[keyOf(a)].time));
+  if (!done.length) { el.innerHTML = '<p class="muted">Nothing reviewed yet. Open <b>Validate</b>, enter your name on the left and mark each term.</p>'; return; }
+  el.innerHTML = `<div class="table-wrap"><table><thead><tr><th>Record text</th><th>Term</th><th>Decision</th><th>By</th><th>When</th><th>Comment</th></tr></thead><tbody>${done.map((e) => {
+    const r = reviews[keyOf(e)], st = reviewStatus(e), v = byId[e.source], t = byId[e.target];
+    return `<tr><td><span class="muted">${escHtml(v.field_label)}:</span> ${escHtml(v.label)}</td><td><a href="#" data-open="${escHtml(keyOf(e))}">${escHtml(t.label)}</a> <span class="muted">${escHtml(t.curie)}</span></td>
+      <td><span class="rv-pill st-${st}">${STATUS_LABEL[st]}</span>${r.match_type ? ` <span class="muted">as ${escHtml(shortMatch(r.match_type))}</span>` : ''}</td>
+      <td>${escHtml(Object.keys(r.reviewers).join(', '))}</td><td>${escHtml(r.time.slice(0, 16).replace('T', ' '))}</td><td>${escHtml(r.comment || '')}</td></tr>`;
+  }).join('')}</tbody></table></div><p class="note">Saved in <code>cloud-reviews.jsonl</code> (every decision) and <code>cloud-match-reviews.csv</code> (current state) in the reviews folder.</p>`;
+}
+document.addEventListener('click', (ev) => {
+  const a = ev.target.closest('[data-open]');
+  if (!a) return;
+  ev.preventDefault();
+  const e = predicted().find((x) => keyOf(x) === a.dataset.open);
+  if (e) openMatch(e);
+});
+
+// ─── Each run's own terms ────────────────────────────────────────────────────
+// The build gives every run a default term per role (material, ecosystem, organism,
+// assay). Reviews decide: terms marked correct for that text replace the default;
+// a default marked incorrect is dropped; otherwise the default stands as a suggestion.
+const ROLES = [['material', 'Material'], ['ecosystem', 'Ecosystem'], ['organism', 'Organism'], ['assay', 'Assay']];
+function resolveRunTerm(e) {
+  const kind = byId[e.target].kind;
+  const cands = predicted().filter((p) => p.source === e.value && byId[p.target].kind === kind);
+  const correct = cands.filter((p) => reviewStatus(p) === 'correct');
+  if (correct.length) return correct.map((p) => ({ target: p.target, status: 'confirmed', match: reviews[keyOf(p)].match_type || p.match }));
+  const def = cands.find((p) => p.target === e.target);
+  if (def && reviewStatus(def) === 'incorrect') return [];
+  return [{ target: e.target, status: 'suggested', match: def?.match }];
+}
+function runTerms(runId) {
+  return graph.edges.filter((e) => e.kind === 'run_term' && e.source === runId)
+    .map((e) => ({ role: e.role, terms: resolveRunTerm(e) }));
+}
+const pairOf = (runId) => { const e = graph.edges.find((x) => x.kind === 'paired_with' && (x.source === runId || x.target === runId)); return e ? (e.source === runId ? e.target : e.source) : null; };
+const runSample = (runId) => data.samples.find((s) => 'run:' + s.run === runId);
+
+const dateWarn = (s) => s.date_conflict ? ` <span class="date-warn" title="The sample name says ${escHtml(s.date_conflict)}; ENA's collection date is ${escHtml(s.start)}">⚠ name says ${escHtml(s.date_conflict)}</span>` : '';
+function runCard(runId) {
+  const s = runSample(runId), pair = pairOf(runId), ps = pair && runSample(pair);
+  const rows = runTerms(runId).map(({ role, terms }) => `<div class="term-row"><span class="role">${escHtml(Object.fromEntries(ROLES)[role] || role)}</span>
+    <span>${terms.length ? terms.map((t) => { const n = byId[t.target]; return `<b>${escHtml(n.label)}</b> <span class="muted">${escHtml(n.curie)}</span>`; }).join('<br>') : '<span class="muted">rejected by review; no term yet</span>'}</span>
+    <span>${terms.length ? `<span class="term-status ${terms[0].status}">${terms[0].status === 'confirmed' ? 'reviewed' : 'suggested'}</span>` : ''}</span></div>`).join('');
+  return `<div class="run-card"><h3>${escHtml(s.name)}</h3>
+    <div class="muted" style="margin-bottom:8px"><span class="type-pill" style="--c:var(--k-${s.type})">${escHtml(s.type)}</span> · ${escHtml(s.library)} · collected ${escHtml(s.start)}${s.end && s.end !== s.start ? ' – ' + escHtml(s.end) : ''}${dateWarn(s)}
+      · <a href="${safeUrl(s.url)}" target="_blank" rel="noopener">${escHtml(s.run)}</a> · ${fmt(s.reads)} reads
+      ${ps ? ` · paired with <a href="#" data-run="${escHtml(pair)}">${escHtml(ps.name)}</a> (${escHtml(ps.library)})` : ''}</div>
+    ${rows}
+    <div class="note">“Suggested” is the best predicted term for the run's text; once a reviewer marks a term correct for that text it shows as “reviewed”.</div></div>`;
+}
+
+// ─── Timeline ────────────────────────────────────────────────────────────────
+let selectedRun = null;
+function drawTimeline() {
+  const el = $('timelineView');
+  if (!el || !data) return;
+  const runs = data.samples.filter((s) => s.start && !hiddenTypes.has(s.type));
+  const day = (d) => new Date(d + 'T00:00:00Z').getTime();
+  const all = data.samples.filter((s) => s.start).map((s) => day(s.start));
+  const t0 = Math.min(...all) - 20 * 864e5, t1 = Math.max(...all) + 20 * 864e5;
+  const W = Math.max(640, el.clientWidth - 16), left = 70, right = 16, laneH = 70, top = 14;
+  const lanes = TYPES.filter(([k]) => !hiddenTypes.has(k));
+  const H = top + lanes.length * laneH + 34;
+  const x = (t) => left + (W - left - right) * (t - t0) / (t1 - t0);
+  // Month grid
+  const ticks = [];
+  for (let d = new Date(t0); d.getTime() <= t1; d = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + 1, 1))) {
+    const m = Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), 1);
+    if (m >= t0) ticks.push(m);
+  }
+  const grid = ticks.map((t) => { const d = new Date(t), first = d.getUTCMonth() === 0;
+    return `<line class="grid" x1="${x(t)}" x2="${x(t)}" y1="${top}" y2="${H - 30}"></line>
+      <text x="${x(t)}" y="${H - 16}" text-anchor="middle">${d.toLocaleString('en', { month: 'short', timeZone: 'UTC' })}</text>
+      ${first || t === ticks[0] ? `<text x="${x(t)}" y="${H - 3}" text-anchor="middle" style="font-weight:600">${d.getUTCFullYear()}</text>` : ''}`; }).join('');
+  // Sampling events: one per type and date; nudge events that would overlap.
+  let body = '';
+  lanes.forEach(([k, l], li) => {
+    const cy = top + li * laneH + laneH / 2;
+    body += `<text class="lane-label" x="8" y="${cy + 4}">${escHtml(l.split(' ')[0])}</text>`;
+    const events = {};
+    runs.filter((s) => s.type === k).forEach((s) => (events[s.start] ||= []).push(s));
+    let lastX = -1e9;
+    Object.keys(events).sort().forEach((d) => {
+      let ex = x(day(d));
+      const truth = ex;
+      if (ex - lastX < 16) ex = lastX + 16;
+      lastX = ex;
+      if (Math.abs(ex - truth) > 1) body += `<line class="pair" x1="${truth}" x2="${ex}" y1="${cy + 22}" y2="${cy + 14}"></line><line class="grid" x1="${truth}" x2="${truth}" y1="${cy + 19}" y2="${cy + 25}"></line>`;
+      const evs = events[d].sort((a, b) => a.library.localeCompare(b.library));
+      if (evs.length > 1) body += `<line class="pair" x1="${ex}" x2="${ex}" y1="${cy - 8}" y2="${cy + 8}"></line>`;
+      evs.forEach((s, i) => {
+        const yy = cy + (evs.length > 1 ? (i === 0 ? -8 : 8) : 0), id = 'run:' + s.run, dna = s.library === 'metagenome';
+        body += `<g class="run${selectedRun === id ? ' sel' : ''}" data-run="${escHtml(id)}">
+          <circle cx="${ex}" cy="${yy}" r="12" fill="transparent"></circle>
+          <circle class="mark" cx="${ex}" cy="${yy}" r="6" fill="${dna ? `var(--k-${k})` : 'var(--panel-bg)'}" style="${dna ? '' : `stroke:var(--k-${k});stroke-width:2.5`}"></circle></g>`;
+        if (s.date_conflict && i === 0) body += `<text x="${ex}" y="${cy - 20}" text-anchor="middle" class="warn-mark">⚠</text>`;
+      });
+    });
+  });
+  const counts = TYPES.map(([k, l]) => `${new Set(data.samples.filter((s) => s.type === k).map((s) => s.start)).size} ${l.toLowerCase()} samplings`).join(', ');
+  const siteName = graph.nodes.find((n) => n.kind === 'site')?.label || 'the site';
+  el.innerHTML = `<h2>When the samples were taken</h2>
+    <p class="muted">Each sampling at ${escHtml(siteName)} gave a DNA run (metagenome) and an RNA run (metatranscriptome): ${escHtml(counts)}, ${escHtml(data.samples.map((s) => s.start).sort()[0])} to ${escHtml(data.samples.map((s) => s.start).sort().pop())}. Click a run for its terms.</p>
+    <div class="tl-legend">${lanes.map(([k, l]) => `<span><span class="tl-dot" style="background:var(--k-${k})"></span>${escHtml(l)}</span>`).join('')}
+      <span><span class="tl-dot" style="background:var(--text-muted)"></span>DNA (metagenome)</span>
+      <span><span class="tl-dot" style="border:2.5px solid var(--text-muted)"></span>RNA (metatranscriptome)</span>
+      <span class="muted">Close dates are nudged apart; a tick marks the true date.</span></div>
+    ${data.samples.some((s) => s.date_conflict) ? `<p class="note">⚠ ${[...new Set(data.samples.filter((s) => s.date_conflict).map((s) => s.name.replace(/^A[DR]N/, '')))].map((n) => {
+      const s = data.samples.find((x) => x.name.endsWith(n)); return `<b>${escHtml(n)}</b>: the sample names say ${escHtml(s.date_conflict)}, ENA's collection date is ${escHtml(s.start)}`; }).join('; ')}.
+      Plotted at ENA's date; one of the two is likely a typo for the submitter to fix.</p>` : ''}
+    <div class="tl-wrap" id="tlWrap"><svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Sampling dates of the runs">${grid}${body}</svg><div class="tl-tip" id="tlTip" hidden></div></div>
+    <div id="runCard">${selectedRun ? runCard(selectedRun) : '<p class="muted" style="margin-top:12px">Select a run to see its material, ecosystem, organism and assay terms.</p>'}</div>`;
+}
+document.addEventListener('mouseover', (ev) => {
+  const g = ev.target.closest?.('.tl-wrap .run');
+  const tip = $('tlTip');
+  if (!tip) return;
+  if (!g) { tip.hidden = true; return; }
+  const s = runSample(g.dataset.run), wrap = $('tlWrap').getBoundingClientRect(), r = g.getBoundingClientRect();
+  tip.innerHTML = `<b>${escHtml(s.name)}</b><br>${escHtml(s.type)} · ${escHtml(s.library)}<br>${escHtml(s.start)}${s.end && s.end !== s.start ? ' – ' + escHtml(s.end) : ''} · ${fmt(s.reads)} reads${s.date_conflict ? `<br>⚠ the name says ${escHtml(s.date_conflict)}` : ''}`;
+  tip.hidden = false;
+  tip.style.left = Math.min(r.left - wrap.left + 14, wrap.width - tip.offsetWidth - 4) + 'px';
+  tip.style.top = (r.top - wrap.top - tip.offsetHeight - 6) + 'px';
+});
+document.addEventListener('click', (ev) => {
+  const g = ev.target.closest?.('[data-run]');
+  if (!g) return;
+  ev.preventDefault();
+  selectedRun = g.dataset.run;
+  if ($('panes').dataset.mode !== 'timeline') setPane('timeline'); else drawTimeline();
+  $('runCard')?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+});
+window.addEventListener('resize', () => { if ($('panes').dataset.mode === 'timeline') drawTimeline(); });
+
+// ─── Air metagenomes: every tax 655179 sample in ENA ─────────────────────────
+let air = null, airMap = null;
+const SETTINGS = [['outdoor', 'Outdoor'], ['agricultural', 'Agricultural'], ['indoor', 'Indoor'], ['not stated', 'Not stated']];
+const setVar = (k) => `var(--set-${k.replace(' ', '-')})`;
+async function drawAir() {
+  const el = $('airView');
+  if (!air) {
+    el.innerHTML = '<p class="muted">Loading…</p>';
+    try { const r = await fetch('data/air.json'); air = r.ok ? await r.json() : false; } catch { air = false; }
+  }
+  if (!air) { el.innerHTML = '<p class="muted">Not built yet: run <code>python -m cloud.build</code> (the first run searches OLS4 for a few hundred texts).</p>'; return; }
+  const m = air.meta, pct = (k) => `${Math.round(100 * k / m.samples)}%`;
+  const studyTerms = new Set(predicted().filter((e) => !byId[e.source].air && !byId[e.source].plan).map((e) => e.target));
+  const termTable = (k) => `<div><h3>${escHtml(air.fields[k])}</h3><div class="table-wrap"><table><thead><tr><th>ENVO term</th><th class="num">Samples</th><th>From</th><th>Record text, e.g.</th></tr></thead><tbody>${
+    air.terms[k].slice(0, 15).map((t) => `<tr><td><a href="${safeUrl(olsUrl(t.uri, 'envo'))}" target="_blank" rel="noopener">${escHtml(t.label)}</a> <span class="muted">${escHtml(t.curie)}</span>
+      ${studyTerms.has(t.uri) ? '<span class="shared" title="Also predicted for the cloud study">in cloud study</span>' : ''}</td><td class="num">${fmt(t.samples)}</td>
+      <td class="muted">${Object.entries(t.methods).map(([w, n]) => `${w === 'envo_id_in_record' ? 'ID in record' : 'OLS4'} ${fmt(n)}`).join(', ')}</td>
+      <td class="muted">${t.texts.slice(0, 2).map(([x]) => escHtml(x.length > 40 ? x.slice(0, 40) + '…' : x)).join('; ')}</td></tr>`).join('')}</tbody></table></div></div>`;
+  const sim = air.similar.slice(0, 60).map((s) => `<tr><td><a href="https://www.ebi.ac.uk/ena/browser/view/${encodeURIComponent(s.accession)}" target="_blank" rel="noopener">${escHtml(s.accession)}</a></td>
+    <td>${escHtml(s.country || '')}</td><td>${escHtml(s.date || '')}</td><td class="num">${s.altitude != null ? fmt(s.altitude) : '–'}</td>
+    <td><span class="type-pill" style="--c:${setVar(s.setting)}">${escHtml(s.setting)}</span></td><td class="muted">${escHtml(s.why)}</td><td class="muted">${escHtml(s.project || '')}</td></tr>`).join('');
+  el.innerHTML = `<h2>All air metagenomes in ENA</h2>
+    <p>Every BioSample with NCBI taxon ${escHtml(m.tax_id)} (<i>air metagenome</i>): ${fmt(m.samples)} samples, fetched from ENA with <code>${escHtml(m.query)}</code>
+      together with the fields a plain list lacks.
+      ${m.list ? `Your colleague's list has ${fmt(m.list.listed)} accessions; ${fmt(m.list.in_ena)} of them are in ENA's answer${m.list.not_in_ena.length ? ` (not found: ${m.list.not_in_ena.slice(0, 5).map(escHtml).join(', ')}${m.list.not_in_ena.length > 5 ? '…' : ''})` : ''}, and ENA has ${fmt(m.list.ena_not_listed)} that the list does not.` : ''}
+      ${m.study_samples_here ? `${fmt(m.study_samples_here)} of the study's own samples are among them.` : `None of the study's own samples are among them: ENA labels them ${(data.meta.organisms || []).map((o) => `<i>${escHtml(o)}</i>`).join(', ')}, which is why the environment-specific metagenomes are suggested for them.`}</p>
+    <details open><summary><b>The steps</b></summary><ol class="air-steps">
+      <li><b>Fetch</b> every sample with taxon 655179 from the ENA portal API in one request: coordinates, country, date, altitude and the MIxS environment fields.</li>
+      <li><b>Read the environment triad</b> (broad-scale context, local context, medium; the older biome / feature / material names when the new ones are empty).
+        ${fmt(m.with_environment)} samples (${pct(m.with_environment)}) fill at least one.</li>
+      <li><b>Take ENVO IDs as given</b>: ${fmt(m.envo_ids)} distinct IDs are already written in the records (“atmosphere [ENVO:01000267]”); their labels come from OLS4.
+        Where the words and the ID disagree (${fmt(m.id_conflict_samples || 0)} sample values), neither is trusted and the value is listed below.</li>
+      <li><b>Search the free text</b> in OLS4 with the same calibrated matcher as the cloud study: ${fmt(m.searched)} distinct texts used by at least ${m.min_samples} samples, best hit kept.
+        ${fmt(m.mapped)} samples (${pct(m.mapped)}) end up with at least one ENVO term.</li>
+      <li><b>Place and sort</b>: each sample on the map by its own coordinates (${fmt(m.with_coordinates)} samples at ${fmt(m.sites)} places), with a rough setting read from its words.</li>
+      <li><b>Review</b>: the mappings of texts used by 20 or more samples (${fmt(m.reviewable)}) are under <b>Validate</b>, “Text from: All air metagenomes”.</li>
+    </ol></details>
+    <div class="tiles" style="margin-top:12px">
+      <div class="tile"><div class="k">Samples</div><div class="v">${fmt(m.samples)}</div><div class="s">air metagenome (NCBITaxon:655179)</div></div>
+      <div class="tile"><div class="k">On the map</div><div class="v">${pct(m.with_coordinates)}</div><div class="s">${fmt(m.with_coordinates)} with coordinates, ${fmt(m.sites)} places</div></div>
+      <div class="tile"><div class="k">With an ENVO term</div><div class="v">${pct(m.mapped)}</div><div class="s">${fmt(m.mapped)} samples; the rest state no environment</div></div>
+      <div class="tile"><div class="k">Like the cloud study</div><div class="v">${fmt(air.similar_total)}</div><div class="s">at ≥ ${m.high_altitude} m, or naming cloud, fog, mountain…</div></div>
+    </div>
+    <h3>Where they were taken</h3>
+    <div class="map-legend-inline">${SETTINGS.map(([k, l]) => `<span><span class="tl-dot" style="background:${setVar(k)}"></span>${l} ${fmt(m.settings[k] || 0)}</span>`).join('')}
+      <span>★ the study's site (${escHtml(graph.nodes.find((n) => n.kind === 'site')?.label || '')})</span><span class="muted">Circle size: samples at that place. Setting is read from the record's words, so it is rough.</span></div>
+    <div id="airMap"></div>
+    <h3>ENVO terms they map to</h3>
+    <div class="air-grid">${Object.keys(air.terms).map(termTable).join('')}</div>
+    ${air.id_conflicts?.length ? `<h3>Records whose words and ENVO ID disagree</h3>
+    <p class="muted">The submitter wrote one thing and an ID that means another. These are left unmapped; the submitter (or a curator) should fix the record.</p>
+    <div class="table-wrap"><table><thead><tr><th>Record text</th><th>Field</th><th>The ID means</th><th class="num">Samples</th></tr></thead><tbody>${
+      air.id_conflicts.slice(0, 20).map((c) => `<tr><td>${escHtml(c.text)}</td><td class="muted">${escHtml(air.fields[c.field])}</td>
+        <td>${escHtml(c.label || '?')} <span class="muted">${escHtml(c.curie)}</span></td><td class="num">${fmt(c.samples)}</td></tr>`).join('')}</tbody></table></div>` : ''}
+    <h3>The samples most like the cloud study</h3>
+    <p class="muted">${fmt(air.similar_total)} samples taken at ${m.high_altitude} m or higher, or whose text names clouds, fog, mountains, peaks or the troposphere. The highest 60:</p>
+    <div class="table-wrap"><table><thead><tr><th>Sample</th><th>Country</th><th>Date</th><th class="num">Altitude (m)</th><th>Setting</th><th>Why</th><th>Project</th></tr></thead><tbody>${sim}</tbody></table></div>`;
+  drawAirMap();
+}
+function drawAirMap() {
+  if (airMap) { airMap.remove(); airMap = null; }
+  airMap = L.map('airMap', { worldCopyJump: true, preferCanvas: true }).setView([30, 10], 2);
+  L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Light_Gray_Base/MapServer/tile/{z}/{y}/{x}',
+    { maxZoom: 16, attribution: 'Tiles © Esri' }).addTo(airMap);
+  const bg = cssVar('--panel-bg');
+  air.sites.slice().sort((a, b) => b.n - a.n).forEach((s) => {
+    const c = cssVar(`--set-${s.setting.replace(' ', '-')}`);
+    L.circleMarker([s.lat, s.lon], { radius: Math.min(22, 3 + 2.2 * Math.sqrt(s.n)), color: bg, weight: 1, fillColor: c, fillOpacity: 0.75 })
+      .bindTooltip(`<b>${fmt(s.n)} samples</b> · ${escHtml(s.country)}<br>${Object.entries(s.settings).map(([k, n]) => `${escHtml(k)} ${fmt(n)}`).join(', ')}<br>
+        ${escHtml(s.projects.join('; ').slice(0, 120))}${s.years.length ? `<br>${escHtml(s.years[0])}${s.years.length > 1 ? '–' + escHtml(s.years[s.years.length - 1]) : ''}` : ''}`)
+      .addTo(airMap);
+  });
+  const site = graph.nodes.find((n) => n.kind === 'site');
+  if (site?.lat != null) L.marker([site.lat, site.lon], { icon: L.divIcon({ className: '', html: '<div style="font-size:22px;line-height:22px;color:#c62828;text-shadow:0 0 2px #fff">★</div>', iconSize: [22, 22], iconAnchor: [11, 11] }) })
+    .bindTooltip(`The study's site: ${escHtml(site.label)}${site.altitude != null ? `, ${fmt(site.altitude)} m` : ''}`).addTo(airMap);
+}
+
+// ─── Samples ─────────────────────────────────────────────────────────────────
+function drawSamples() {
+  const chips = (s) => runTerms('run:' + s.run).flatMap(({ terms }) => terms).map((t) =>
+    `<span class="term-chip ${t.status}" title="${escHtml(byId[t.target].curie)} · ${t.status === 'confirmed' ? 'reviewed' : 'suggested'}">${escHtml(byId[t.target].label)}</span>`).join('');
+  const rows = data.samples.map((s) => `<tr><td>${escHtml(s.start)}${s.end && s.end !== s.start ? ' – ' + escHtml(s.end) : ''}${dateWarn(s)}</td><td><a href="#" data-run="run:${escHtml(s.run)}">${escHtml(s.name)}</a></td>
+    <td><span class="type-pill" style="--c:var(--k-${s.type})">${escHtml(s.type)}</span></td><td>${escHtml(s.library)}</td>
+    <td><a href="${safeUrl(s.url)}" target="_blank" rel="noopener">${escHtml(s.run)}</a></td><td>${escHtml(s.sample)}</td>
+    <td class="num">${fmt(s.reads)}</td><td class="num">${s.bases ? (s.bases / 1e9).toFixed(1) : '–'}</td><td><div class="term-chips">${chips(s)}</div></td></tr>`).join('');
+  $('samplesView').innerHTML = `<h2>Runs</h2><p class="muted">All ${data.samples.length} runs of ${escHtml(data.meta.project)}, one sample each, by sampling date. ADN = DNA (metagenome), ARN = RNA (metatranscriptome).</p>
+    <div class="table-wrap"><table><thead><tr><th>Collected</th><th>Sample name</th><th>Type</th><th>Library</th><th>Run</th><th>BioSample</th><th class="num">Reads</th><th class="num">Gbases</th><th>Terms (dashed: suggested)</th></tr></thead><tbody>${rows}</tbody></table></div>`;
+}
+
+// ─── Graph ───────────────────────────────────────────────────────────────────
+const VALUE_PREFIX = (f) => (f || '').replace(/^Broad-scale.*/, 'biome').replace(/^Local.*/, 'local context')
+  .replace(/^Environmental medium.*/, 'medium').replace(/^Sample type.*/, 'sample type').replace(/^Organism \((\w+) samples\)/, 'organism, $1').replace(/^Metadata plan.*/, 'plan').replace(/^Library source.*/, 'library');
+function graphElements() {
+  const keep = new Set(), edges = [];
+  const mode = $('panes').dataset.mode;
+  // The whole graph is about the runs; metadata plan items (no runs yet) stay in Validate.
+  const pred = predicted().filter(shown).filter((e) => mode === 'validate' ? (!focusValue || e.source === focusValue) : !byId[e.source].plan && !byId[e.source].air);
+  pred.forEach((e) => { keep.add(e.source); keep.add(e.target); edges.push(e); });
+  graph.edges.filter((e) => e.kind === 'linker' && keep.has(e.target)).forEach((e) => { keep.add(e.source); edges.push(e); });
+  // GOLD: the path's words, their ENVO mappings, and MGnify's biome on the same path.
+  graph.edges.filter((e) => e.kind === 'path_word' && keep.has(e.source)).forEach((e) => { keep.add(e.target); edges.push(e); });
+  graph.edges.filter((e) => e.kind === 'gold_envo' && keep.has(e.source)).forEach((e) => { keep.add(e.target); edges.push(e); });
+  graph.edges.filter((e) => e.kind === 'same_path' && keep.has(e.source) && keep.has(e.target)).forEach((e) => edges.push(e));
+  // NCBI Taxonomy lineage above the shown taxa (a chain, so repeat until it stops growing).
+  for (let grew = true; grew;) {
+    grew = false;
+    graph.edges.filter((e) => e.kind === 'lineage' && keep.has(e.source) && !keep.has(e.target)).forEach((e) => { keep.add(e.target); grew = true; });
+  }
+  graph.edges.filter((e) => e.kind === 'lineage' && keep.has(e.source) && keep.has(e.target)).forEach((e) => edges.push(e));
+  // Samples behind the shown texts, with the study and site they hang off.
+  graph.edges.filter((e) => e.kind === 'has_value' && keep.has(e.target) && !hiddenTypes.has(byId[e.source].type)).forEach((e) => { keep.add(e.source); edges.push(e); });
+  const runs = new Set([...keep].filter((id) => byId[id].kind === 'sample'));
+  graph.edges.filter((e) => (e.kind === 'has_run' && runs.has(e.target)) || (e.kind === 'collected_at' && runs.has(e.source))).forEach((e) => {
+    keep.add(e.source); keep.add(e.target); edges.push(e);
+  });
+  // The full graph: each run's own terms (reviewed or suggested) and its DNA/RNA pair.
+  if ($('panes').dataset.mode === 'graph') {
+    runs.forEach((r) => runTerms(r).forEach(({ role, terms }) => terms.forEach((t) => {
+      if (hiddenOntos.has(byId[t.target].kind)) return;
+      keep.add(t.target);
+      edges.push({ source: r, target: t.target, kind: 'run_term', role, status: t.status });
+    })));
+    graph.edges.filter((e) => e.kind === 'paired_with' && runs.has(e.source) && runs.has(e.target)).forEach((e) => edges.push(e));
+  }
+  return group(keep, edges);
+}
+
+// Runs grouped by sample type and library: the 28 runs share their terms, so four
+// nodes say the same with far less clutter. Edges are merged, keeping the count.
+function group(keep, edges) {
+  const grouped = $('runMode').value === 'group';
+  const gid = (id) => { const n = byId[id]; return grouped && n?.kind === 'sample' ? `group:${n.type}:${n.library}` : id; };
+  const groups = {};
+  if (grouped) [...keep].filter((id) => byId[id].kind === 'sample').forEach((id) => (groups[gid(id)] ||= []).push(byId[id]));
+  const merged = {};
+  edges.forEach((e) => {
+    if (grouped && e.kind === 'paired_with') return;
+    const s = gid(e.source), t = gid(e.target), k = `${e.kind}:${s}>${t}:${e.role || ''}`;
+    if (merged[k]) { merged[k].n++; if (e.status === 'confirmed') merged[k].status = 'confirmed'; return; }
+    merged[k] = { ...e, source: s, target: t, n: 1 };
+  });
+  const nodeIds = new Set([...keep].map(gid));
+  return {
+    nodes: [...nodeIds].map((id) => {
+      if (groups[id]) {
+        const [, type, library] = id.split(':'), list = groups[id], k = KINDS['sample_' + type];
+        return { data: { id, kind: 'sample', group: true, type, library, label: `${type} · ${library === 'metagenome' ? 'DNA' : 'RNA'} (${list.length})`,
+          size: 14 + 3 * Math.sqrt(list.length) * 2, color: k.color(), shape: k.shape } };
+      }
+      const n = byId[id], k = KINDS[kindOf(n)];
+      // The same text can come from two fields ("air" as biome and as sample type), so say which.
+      const label = n.kind === 'value' ? `${VALUE_PREFIX(n.field_label)}: ${n.label}` : n.label;
+      return { data: { ...n, label, color: k.color(), shape: k.shape } };
+    }),
+    edges: Object.values(merged).map((e) => ({ data: { id: `${e.kind}:${e.source}>${e.target}:${e.role || ''}`, ...e,
+      label: e.kind === 'run_term' ? e.role : '', rv: e.kind === 'predicted' ? reviewStatus(e) : '' } })),
+  };
+}
+
+function drawGraph() {
+  const mode = $('panes').dataset.mode;
+  if (mode !== 'graph' && mode !== 'validate') return;
+  if (cy) cy.destroy();
+  const els = graphElements();
+  const text = cssVar('--text'), muted = cssVar('--text-muted'), bg = cssVar('--bg');
+  cy = cytoscape({
+    container: $('cy'), elements: els, wheelSensitivity: 0.3, maxZoom: 2.5,
+    style: [
+      { selector: 'node', style: { 'background-color': 'data(color)', shape: 'data(shape)', width: 22, height: 22, label: 'data(label)',
+        'font-size': 10, color: text, 'text-valign': 'bottom', 'text-margin-y': 3, 'text-wrap': 'ellipsis', 'text-max-width': 120,
+        'text-background-color': bg, 'text-background-opacity': 0.7, 'text-background-padding': 1, 'border-width': 2, 'border-color': bg } },
+      { selector: 'node[kind="sample"]', style: { width: 12, height: 12, label: '', 'font-size': 8 } },
+      { selector: 'node[?group]', style: { width: 'data(size)', height: 'data(size)', label: 'data(label)', 'font-size': 11, 'font-weight': 600 } },
+      { selector: 'edge[kind="run_term"]', style: { width: 2, opacity: 0.75, 'line-color': cssVar('--text-muted'), 'line-style': 'dotted',
+        'target-arrow-shape': 'triangle', 'target-arrow-color': cssVar('--text-muted'), label: 'data(label)', 'font-size': 8, color: muted,
+        'text-background-color': bg, 'text-background-opacity': 0.8 } },
+      { selector: 'edge[kind="run_term"][status="confirmed"]', style: { 'line-style': 'solid', 'line-color': cssVar('--st-correct'), 'target-arrow-color': cssVar('--st-correct'), width: 3 } },
+      { selector: 'edge[kind="paired_with"]', style: { width: 2, opacity: 0.7, 'line-color': cssVar('--text'), label: '' } },
+      { selector: 'node[kind="value"]', style: { width: 'label', height: 20, 'text-valign': 'center', 'text-margin-y': 0, padding: 6,
+        color: '#fff', 'text-background-opacity': 0, 'font-size': 11 } },
+      { selector: 'node[kind="study"], node[kind="site"]', style: { width: 18, height: 18 } },
+      { selector: 'node:selected', style: { 'border-color': cssVar('--accent'), 'border-width': 3 } },
+      { selector: 'edge', style: { width: 1, 'line-color': muted, opacity: 0.35, 'curve-style': 'bezier' } },
+      { selector: 'edge[kind="predicted"]', style: { width: 2, opacity: 0.9, 'line-style': 'dashed', 'target-arrow-shape': 'triangle',
+        'target-arrow-color': muted, label: 'data(match)', 'font-size': 8, color: muted, 'text-rotation': 'autorotate',
+        'text-background-color': bg, 'text-background-opacity': 0.8 } },
+      { selector: 'edge[kind="linker"]', style: { width: 2, opacity: 0.8, 'line-color': cssVar('--accent') } },
+      { selector: 'edge[kind="lineage"]', style: { width: 2, opacity: 0.7, 'line-color': cssVar('--k-ncbitaxon'), 'target-arrow-shape': 'triangle',
+        'target-arrow-color': cssVar('--k-ncbitaxon'), label: 'is a', 'font-size': 8, color: muted } },
+      { selector: 'node[?lineage_only]', style: { width: 14, height: 14, opacity: 0.8 } },
+      { selector: 'edge[kind="path_word"], edge[kind="gold_envo"], edge[kind="same_path"]', style: { width: 2, opacity: 0.7,
+        'line-color': cssVar('--k-gold'), 'target-arrow-shape': 'triangle', 'target-arrow-color': cssVar('--k-gold'), 'font-size': 8, color: muted } },
+      { selector: 'edge[kind="gold_envo"]', style: { label: 'GOLD → ENVO', 'line-style': 'dotted' } },
+      { selector: 'edge[kind="same_path"]', style: { label: 'same path', 'target-arrow-shape': 'none' } },
+      ...['correct', 'incorrect', 'unsure', 'disputed'].map((s) => ({ selector: `edge[rv="${s}"]`, style: { 'line-color': cssVar(`--st-${s}`),
+        'target-arrow-color': cssVar(`--st-${s}`), 'line-style': s === 'correct' ? 'solid' : 'dashed', width: 3 } })),
+    ],
+    layout: { name: 'cose', animate: false, nodeRepulsion: 9000, idealEdgeLength: 70, padding: 30 },
+  });
+  cy.on('tap', 'edge[kind="predicted"]', (ev) => openMatch(ev.target.data()));
+  cy.on('tap', 'node[kind="value"]', (ev) => { focusValue = ev.target.id(); if (mode === 'graph') setPane('validate'); else { markFocus(); drawGraph(); } scrollToValue(); });
+  cy.on('tap', 'node[kind="envo"], node[kind="ncbitaxon"], node[kind="mgnify"], node[kind="gold"], node[kind="cf"], node[kind="obi"]', (ev) => {
+    const e = predicted().find((x) => x.target === ev.target.id() && (!focusValue || x.source === focusValue)) || predicted().find((x) => x.target === ev.target.id());
+    if (e) openMatch(e);
+  });
+  cy.on('mouseover', 'node[kind="sample"][!group]', (ev) => ev.target.style('label', ev.target.data('label')));
+  cy.on('mouseout', 'node[kind="sample"][!group]', (ev) => ev.target.style('label', ''));
+  cy.on('tap', 'node[kind="sample"][!group]', (ev) => { selectedRun = ev.target.id(); setPane('timeline'); });
+  cy.on('tap', 'node[?group]', () => { $('runMode').value = 'run'; drawGraph(); });
+  $('graphHint').textContent = mode === 'validate' && focusValue
+    ? `Showing “${byId[focusValue].label}” and its candidate terms. Click a term or a dashed edge to review it.`
+    : $('runMode').value === 'group'
+      ? 'Runs are grouped by type and library; dotted edges are their suggested terms, green once reviewed. Click a group to show its runs, a grey text to review its terms.'
+      : 'Each run with its own terms (dotted: suggested, green: reviewed) and its DNA/RNA pair. Click a run for its details, a grey text to review its terms.';
+}
+const scrollToValue = () => document.querySelector(`.vgroup[data-value="${CSS.escape(focusValue)}"]`)?.scrollIntoView({ block: 'start', behavior: 'smooth' });
+
+// ─── Controls ────────────────────────────────────────────────────────────────
+function setPane(mode) {
+  $('panes').dataset.mode = mode;
+  document.querySelectorAll('.pane-toggle-btn').forEach((b) => b.classList.toggle('active', b.dataset.pane === mode));
+  if (mode === 'validate' && !focusValue) focusValue = predicted().find(shown)?.source || null;
+  if (mode === 'validate') { drawList(); markFocus(); }
+  if (mode === 'timeline') drawTimeline();
+  if (mode === 'samples') drawSamples();
+  if (mode === 'air') drawAir();
+  drawGraph();
+}
+document.querySelectorAll('.pane-toggle-btn').forEach((b) => b.addEventListener('click', () => setPane(b.dataset.pane)));
+
+function drawChecks() {
+  const count = (k) => new Set(predicted().filter((e) => byId[e.target].kind === k).map((e) => e.target)).size;
+  $('ontoChecks').innerHTML = ONTOS.map(([k, l]) => `<label><input type="checkbox" data-onto="${k}"${hiddenOntos.has(k) ? '' : ' checked'}>
+    <span class="check-swatch" style="background:var(--k-${k})"></span>${l} <span class="muted">${count(k)} terms</span></label>`).join('');
+  $('typeChecks').innerHTML = TYPES.map(([k, l]) => `<label><input type="checkbox" data-type="${k}"${hiddenTypes.has(k) ? '' : ' checked'}>
+    <span class="check-swatch" style="background:var(--k-${k});border-radius:50%"></span>${l} <span class="muted">${data.samples.filter((s) => s.type === k).length} runs</span></label>`).join('');
+}
+const refilter = () => { drawList(); drawGraph(); if ($('panes').dataset.mode === 'timeline') drawTimeline(); };
+$('runMode').addEventListener('change', () => { if ($('panes').dataset.mode !== 'graph') setPane('graph'); else drawGraph(); });
+$('ontoChecks').addEventListener('change', (e) => { const k = e.target.dataset.onto; e.target.checked ? hiddenOntos.delete(k) : hiddenOntos.add(k); refilter(); });
+$('typeChecks').addEventListener('change', (e) => { const k = e.target.dataset.type; e.target.checked ? hiddenTypes.delete(k) : hiddenTypes.add(k); refilter(); });
+$('sourceFilter').addEventListener('change', () => { if ($('panes').dataset.mode !== 'validate') setPane('validate'); else refilter(); });
+$('reviewFilter').addEventListener('change', () => { if ($('panes').dataset.mode === 'overview') setPane('validate'); else refilter(); });
+$('searchInput').addEventListener('input', () => { if ($('panes').dataset.mode === 'overview' || $('panes').dataset.mode === 'samples') setPane('validate'); else refilter(); });
+$('confSlider').addEventListener('input', (e) => { $('confValue').textContent = (+e.target.value).toFixed(2); refilter(); });
+
+function drawStats() {
+  const m = data.meta;
+  const rows = [['Runs', m.runs], [TYPES.map(([, l]) => l).join(' / '), TYPES.map(([k]) => m.type_counts[k]).join(' / ')], ['Texts searched', new Set(predicted().map((e) => e.source)).size],
+    ['Predicted terms', m.predicted], ['Distinct terms', m.terms], ['New to our graphs', m.new_terms]];
+  $('statsList').innerHTML = rows.map(([k, v]) => `<div><dt>${k}</dt><dd>${v}</dd></div>`).join('');
+}
+function drawLegend() {
+  const shapeCss = { ellipse: 'border-radius:50%', 'round-rectangle': 'border-radius:3px;width:18px', diamond: 'transform:rotate(45deg) scale(.8)',
+    hexagon: 'clip-path:polygon(25% 0,75% 0,100% 50%,75% 100%,25% 100%,0 50%)', 'round-triangle': 'clip-path:polygon(50% 0,100% 100%,0 100%)',
+    star: 'clip-path:polygon(50% 0,61% 35%,98% 35%,68% 57%,79% 91%,50% 70%,21% 91%,32% 57%,2% 35%,39% 35%)', vee: 'clip-path:polygon(0 0,50% 40%,100% 0,50% 100%)',
+    pentagon: 'clip-path:polygon(50% 0,100% 38%,82% 100%,18% 100%,0 38%)', tag: 'clip-path:polygon(0 0,70% 0,100% 50%,70% 100%,0 100%)', barrel: 'border-radius:35%/20%', 'round-diamond': 'transform:rotate(45deg) scale(.75);border-radius:3px' };
+  const present = new Set(graph.nodes.map(kindOf));
+  $('legend').innerHTML = Object.entries(KINDS).filter(([k]) => present.has(k)).map(([, k]) =>
+    `<div class="legend-row"><span class="legend-node" style="background:${k.color()};${shapeCss[k.shape]}"></span> ${escHtml(k.label)}</div>`).join('')
+    + `<div class="legend-row"><span class="legend-edge" style="border-top-style:dashed"></span> Predicted term (to review)</div>`
+    + `<div class="legend-row"><span class="legend-edge" style="border-top:2px dotted var(--text-muted)"></span> A run's own term, suggested</div>`
+    + `<div class="legend-row"><span class="legend-edge" style="border-top:3px solid var(--st-correct)"></span> A run's own term, reviewed</div>`
+    + `<div class="legend-row"><span class="legend-edge" style="border-top:2px solid var(--text)"></span> DNA and RNA run of one sampling</div>`
+    + `<div class="legend-row"><span class="legend-edge" style="border-top-color:var(--k-ncbitaxon)"></span> NCBI Taxonomy lineage (is a)</div>`
+    + `<div class="legend-row"><span class="legend-edge" style="border-top:2px dotted var(--k-gold)"></span> GOLD path and its ENVO mappings</div>`
+    + ['correct', 'incorrect', 'unsure', 'disputed'].map((s) => `<div class="legend-row"><span class="legend-edge" style="border-top:3px ${s === 'correct' ? 'solid' : 'dashed'} var(--st-${s})"></span> ${STATUS_LABEL[s]}</div>`).join('');
+}
+window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => { if (graph) { drawLegend(); drawGraph(); } });
+</script>
+</body>
+</html>

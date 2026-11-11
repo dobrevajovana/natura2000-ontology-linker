@@ -1,0 +1,302 @@
+[
+  {
+    "id": "pangaea_species_00",
+    "label": "Bulimina marginata",
+    "category": "species",
+    "definition": "PANGAEA parameter (dataset 996108)",
+    "codes": [],
+    "scientific_name": "Bulimina marginata",
+    "common_names": [],
+    "source_url": ""
+  },
+  {
+    "id": "pangaea_species_01",
+    "label": "Cibicides lobatulus",
+    "category": "species",
+    "definition": "PANGAEA parameter (dataset 996108)",
+    "codes": [],
+    "scientific_name": "Cibicides lobatulus",
+    "common_names": [],
+    "source_url": ""
+  },
+  {
+    "id": "pangaea_species_02",
+    "label": "Hyalinea balthica",
+    "category": "species",
+    "definition": "PANGAEA parameter (dataset 996108)",
+    "codes": [],
+    "scientific_name": "Hyalinea balthica",
+    "common_names": [],
+    "source_url": ""
+  },
+  {
+    "id": "pangaea_species_03",
+    "label": "Uvigerina peregrina",
+    "category": "species",
+    "definition": "PANGAEA parameter (dataset 996108)",
+    "codes": [],
+    "scientific_name": "Uvigerina peregrina",
+    "common_names": [],
+    "source_url": ""
+  },
+  {
+    "id": "pangaea_species_04",
+    "label": "Melonis barleeanus",
+    "category": "species",
+    "definition": "PANGAEA parameter (dataset 996108)",
+    "codes": [],
+    "scientific_name": "Melonis barleeanus",
+    "common_names": [],
+    "source_url": ""
+  },
+  {
+    "id": "pangaea_species_05",
+    "label": "Cassidulina laevigata",
+    "category": "species",
+    "definition": "PANGAEA parameter (dataset 996108)",
+    "codes": [],
+    "scientific_name": "Cassidulina laevigata",
+    "common_names": [],
+    "source_url": ""
+  },
+  {
+    "id": "pangaea_species_06",
+    "label": "Fissurina marginata",
+    "category": "species",
+    "definition": "PANGAEA parameter (dataset 996108)",
+    "codes": [],
+    "scientific_name": "Fissurina marginata",
+    "common_names": [],
+    "source_url": ""
+  },
+  {
+    "id": "pangaea_species_07",
+    "label": "Cyathea horrida",
+    "category": "species",
+    "definition": "PANGAEA parameter (dataset 996171)",
+    "codes": [],
+    "scientific_name": "Cyathea horrida",
+    "common_names": [],
+    "source_url": ""
+  },
+  {
+    "id": "pangaea_species_08",
+    "label": "Lycopodium australianum",
+    "category": "species",
+    "definition": "PANGAEA parameter (dataset 996171)",
+    "codes": [],
+    "scientific_name": "Lycopodium australianum",
+    "common_names": [],
+    "source_url": ""
+  },
+  {
+    "id": "pangaea_species_09",
+    "label": "Elphidium sp.",
+    "category": "species",
+    "definition": "PANGAEA parameter (dataset 996108)",
+    "codes": [],
+    "scientific_name": "Elphidium sp.",
+    "common_names": [],
+    "source_url": ""
+  },
+  {
+    "id": "pangaea_species_10",
+    "label": "Bolivina sp.",
+    "category": "species",
+    "definition": "PANGAEA parameter (dataset 996108)",
+    "codes": [],
+    "scientific_name": "Bolivina sp.",
+    "common_names": [],
+    "source_url": ""
+  },
+  {
+    "id": "pangaea_species_11",
+    "label": "Gavelinopsis sp.",
+    "category": "species",
+    "definition": "PANGAEA parameter (dataset 996108)",
+    "codes": [],
+    "scientific_name": "Gavelinopsis sp.",
+    "common_names": [],
+    "source_url": ""
+  },
+  {
+    "id": "pangaea_species_12",
+    "label": "Dalbergia sp.",
+    "category": "species",
+    "definition": "PANGAEA parameter (dataset 996171)",
+    "codes": [],
+    "scientific_name": "Dalbergia sp.",
+    "common_names": [],
+    "source_url": ""
+  },
+  {
+    "id": "pangaea_species_13",
+    "label": "Lusatisporis dettmannae",
+    "category": "species",
+    "definition": "PANGAEA parameter (dataset 996171)",
+    "codes": [],
+    "scientific_name": "Lusatisporis dettmannae",
+    "common_names": [],
+    "source_url": ""
+  },
+  {
+    "id": "pangaea_species_14",
+    "label": "Neogloboquadrina atlantica dextral",
+    "category": "species",
+    "definition": "PANGAEA parameter (dataset 995692)",
+    "codes": [],
+    "scientific_name": "Neogloboquadrina atlantica dextral",
+    "common_names": [],
+    "source_url": ""
+  },
+  {
+    "id": "pangaea_habitat_15",
+    "label": "Tundra",
+    "category": "habitat",
+    "definition": "PANGAEA parameter (dataset 981867)",
+    "codes": [],
+    "scientific_name": null,
+    "common_names": [],
+    "source_url": ""
+  },
+  {
+    "id": "pangaea_habitat_16",
+    "label": "Hot desert",
+    "category": "habitat",
+    "definition": "PANGAEA parameter (dataset 981867)",
+    "codes": [],
+    "scientific_name": null,
+    "common_names": [],
+    "source_url": ""
+  },
+  {
+    "id": "pangaea_habitat_17",
+    "label": "Cold desert",
+    "category": "habitat",
+    "definition": "PANGAEA parameter (dataset 981867)",
+    "codes": [],
+    "scientific_name": null,
+    "common_names": [],
+    "source_url": ""
+  },
+  {
+    "id": "pangaea_habitat_18",
+    "label": "Cold steppe",
+    "category": "habitat",
+    "definition": "PANGAEA parameter (dataset 981867)",
+    "codes": [],
+    "scientific_name": null,
+    "common_names": [],
+    "source_url": ""
+  },
+  {
+    "id": "pangaea_habitat_19",
+    "label": "Warm steppe",
+    "category": "habitat",
+    "definition": "PANGAEA parameter (dataset 981867)",
+    "codes": [],
+    "scientific_name": null,
+    "common_names": [],
+    "source_url": ""
+  },
+  {
+    "id": "pangaea_habitat_20",
+    "label": "Xerophytic shrubland",
+    "category": "habitat",
+    "definition": "PANGAEA parameter (dataset 981867)",
+    "codes": [],
+    "scientific_name": null,
+    "common_names": [],
+    "source_url": ""
+  },
+  {
+    "id": "pangaea_habitat_21",
+    "label": "Cold conifer forest",
+    "category": "habitat",
+    "definition": "PANGAEA parameter (dataset 981867)",
+    "codes": [],
+    "scientific_name": null,
+    "common_names": [],
+    "source_url": ""
+  },
+  {
+    "id": "pangaea_habitat_22",
+    "label": "Cold deciduous forest",
+    "category": "habitat",
+    "definition": "PANGAEA parameter (dataset 981867)",
+    "codes": [],
+    "scientific_name": null,
+    "common_names": [],
+    "source_url": ""
+  },
+  {
+    "id": "pangaea_habitat_23",
+    "label": "Cold mixed forest",
+    "category": "habitat",
+    "definition": "PANGAEA parameter (dataset 981867)",
+    "codes": [],
+    "scientific_name": null,
+    "common_names": [],
+    "source_url": ""
+  },
+  {
+    "id": "pangaea_habitat_24",
+    "label": "Cool mixed forest",
+    "category": "habitat",
+    "definition": "PANGAEA parameter (dataset 981867)",
+    "codes": [],
+    "scientific_name": null,
+    "common_names": [],
+    "source_url": ""
+  },
+  {
+    "id": "pangaea_habitat_25",
+    "label": "Warm mixed forest",
+    "category": "habitat",
+    "definition": "PANGAEA parameter (dataset 981867)",
+    "codes": [],
+    "scientific_name": null,
+    "common_names": [],
+    "source_url": ""
+  },
+  {
+    "id": "pangaea_habitat_26",
+    "label": "Temperate deciduous forest",
+    "category": "habitat",
+    "definition": "PANGAEA parameter (dataset 981867)",
+    "codes": [],
+    "scientific_name": null,
+    "common_names": [],
+    "source_url": ""
+  },
+  {
+    "id": "pangaea_habitat_27",
+    "label": "Taiga forest",
+    "category": "habitat",
+    "definition": "PANGAEA parameter (dataset 981867)",
+    "codes": [],
+    "scientific_name": null,
+    "common_names": [],
+    "source_url": ""
+  },
+  {
+    "id": "pangaea_habitat_28",
+    "label": "Pioneer forest",
+    "category": "habitat",
+    "definition": "PANGAEA parameter (dataset 981867)",
+    "codes": [],
+    "scientific_name": null,
+    "common_names": [],
+    "source_url": ""
+  },
+  {
+    "id": "pangaea_habitat_29",
+    "label": "Biome",
+    "category": "habitat",
+    "definition": "PANGAEA parameter (dataset 981867)",
+    "codes": [],
+    "scientific_name": null,
+    "common_names": [],
+    "source_url": ""
+  }
+]

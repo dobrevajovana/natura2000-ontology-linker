@@ -6,6 +6,8 @@
 
 # Pipeline artefacts and the on-disk HTTP cache: all regenerable, and large.
 data/
+# Experts' decisions are data, kept outside the repository (see README).
+reviews/
 *.log
 
 # Python

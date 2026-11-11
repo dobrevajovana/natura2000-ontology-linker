@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>{{ title }}</title>
+<style>
+  :root { --bg: #f5f6f8; --panel-bg: #fff; --border: #d9dce1; --text: #1b1e23; --text-muted: #5b6270; --accent: #1565c0;
+    --accent-contrast: #fff; --danger: #c62828; --warn: #b08800; --ok: #2e7d32; --chip-bg: #eef1f5; }
+  @media (prefers-color-scheme: dark) { :root { --bg: #14161a; --panel-bg: #1c1f24; --border: #33383f; --text: #e7e9ec;
+    --text-muted: #9aa1ab; --accent: #5c9cea; --accent-contrast: #0d1117; --danger: #ef5350; --warn: #e0c341; --ok: #66bb6a; --chip-bg: #262a31; } }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text); font: 14px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
+  .topbar { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 10px 16px; background: var(--panel-bg); border-bottom: 1px solid var(--border); flex-wrap: wrap; }
+  .topbar h1 { font-size: 16px; margin: 0; } a { color: var(--accent); }
+  main { max-width: 1000px; margin: 0 auto; padding: 20px 16px 40px; }
+  p { line-height: 1.55; max-width: 76ch; } .muted { color: var(--text-muted); font-size: 12.5px; }
+  table { border-collapse: collapse; width: 100%; background: var(--panel-bg); border: 1px solid var(--border); border-radius: 8px; overflow: hidden; font-size: 13px; }
+  th { text-align: left; font-size: 12px; color: var(--text-muted); font-weight: 600; padding: 8px 10px; border-bottom: 1px solid var(--border); }
+  td { padding: 8px 10px; border-bottom: 1px solid var(--border); } tr:last-child td { border-bottom: none; }
+  td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
+  .bar { height: 6px; border-radius: 3px; background: var(--chip-bg); overflow: hidden; min-width: 80px; } .bar span { display: block; height: 100%; background: var(--ok); }
+  .err { color: var(--danger); } .warn { color: var(--warn); }
+  .upload { margin: 18px 0; padding: 14px; background: var(--panel-bg); border: 1px dashed var(--border); border-radius: 8px; display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+  .btn { padding: 6px 12px; border: 1px solid var(--accent); border-radius: 6px; background: var(--accent); color: var(--accent-contrast); cursor: pointer; font: inherit; }
+  code { background: var(--chip-bg); padding: 0 4px; border-radius: 4px; font-size: 12px; }
+  .table-wrap { overflow-x: auto; }
+</style>
+</head>
+<body>
+<header class="topbar"><h1>{{ title }}</h1><a id="backLink" href="../" hidden>← Natura 2000 viewer</a></header>
+<main>
+  <p>Predicted mappings from any source, checked automatically and then by experts. Each dataset below is a file;
+    open it to accept or reject each link. Decisions are saved as files on the server, with your name and the time.</p>
+  {% if uploads %}
+  <form class="upload" id="upload">
+    <input type="file" name="file" accept=".json,.tsv,.csv,.txt,.xlsx" required aria-label="Mapping file">
+    <button class="btn" type="submit">Add for review</button>
+    <span class="muted">Linker <code>mappings.json</code>, SSSOM <code>.sssom.tsv</code>, or a CSV / TSV / Excel table
+      with a subject and an object column (<code>subject_id</code>, <code>object_id</code>, …).</span>
+    <span id="msg" class="err"></span>
+  </form>
+  {% endif %}
+  <div class="table-wrap"><table><thead><tr><th>Dataset</th><th class="num">Mappings</th><th>Reviewed</th><th class="num">With errors</th><th class="num">With warnings</th></tr></thead>
+    <tbody id="rows"><tr><td colspan="5" class="muted">Loading…</td></tr></tbody></table></div>
+  <p class="muted">From Python: <code>from verdant_validator import load, check, serve</code>. From the shell: <code>python -m verdant_validator serve FILE</code>.</p>
+</main>
+<script>
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+if (/\/validate\/?$/.test(location.pathname)) $('backLink').hidden = false;
+{% if single %}location.replace('d/{{ single }}/');{% endif %}
+async function draw() {
+  const rows = await (await fetch('api/datasets')).json();
+  $('rows').innerHTML = rows.length ? rows.map((r) => `<tr><td><a href="d/${encodeURIComponent(r.name)}/">${esc(r.name)}</a>
+      ${r.file ? `<div class="muted">${esc(r.file)}</div>` : ''}${r.error ? `<div class="err">${esc(r.error)}</div>` : ''}</td>
+    <td class="num">${r.mappings}</td><td><div class="bar"><span style="width:${r.mappings ? 100 * r.reviewed / r.mappings : 0}%"></span></div>
+      <span class="muted">${r.reviewed} of ${r.mappings}</span></td>
+    <td class="num ${r.with_errors ? 'err' : ''}">${r.with_errors}</td><td class="num ${r.with_warnings ? 'warn' : ''}">${r.with_warnings}</td></tr>`).join('')
+    : '<tr><td colspan="5" class="muted">No datasets yet. Add a file above, or put one in the incoming folder.</td></tr>';
+}
+draw();
+$('upload')?.addEventListener('submit', async (ev) => {
+  ev.preventDefault();
+  $('msg').textContent = 'Reading…';
+  const res = await fetch('upload', { method: 'POST', body: new FormData(ev.target) });
+  const out = await res.json();
+  if (!res.ok) { $('msg').textContent = out.error || 'Could not add the file.'; return; }
+  location.href = `d/${encodeURIComponent(out.name)}/`;
+});
+</script>
+</body>
+</html>

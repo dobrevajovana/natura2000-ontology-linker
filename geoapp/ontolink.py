@@ -63,6 +63,8 @@ for _f in _PO_FIELDS:
 ENVO_BRANCHES: dict[str, tuple[str, frozenset[str]]] = {
     "biome": ("http://purl.obolibrary.org/obo/ENVO_00000428", frozenset({"biome", "area"})),
     "material": ("http://purl.obolibrary.org/obo/ENVO_00010483", frozenset({"material"})),
+    # Not ENVO, but the same mechanism: OBI's assays, for a run's library ("metagenome").
+    "assay": ("http://purl.obolibrary.org/obo/OBI_0000070", frozenset({"assay", "sequencing", "profiling"})),
 }
 FIELD_BRANCH_MAP = {
     "env_broad_scale": "biome", "environment (biome)": "biome", "biome": "biome",
@@ -720,6 +722,36 @@ def _cached_lookup(kind: str, value: str, ontology: str, session: requests.Sessi
             return []
     else:
         terms = wikidata_taxon(value, session)
+    if use_cache:
+        _cache_write(key, [t.to_dict() for t in terms])
+    return terms
+
+
+def search_text(value: str, ontology: str, session: requests.Session, branch: str = "",
+                use_cache: bool = True) -> list[OntologyTerm]:
+    """The best OLS4 hits for ``value`` as written, cached on disk; never raises.
+
+    Unlike the sample enrichment this skips :func:`core_text`, so a taxon name
+    such as "air metagenome" is searched whole instead of losing "metagenome".
+    ``branch`` is a key of :data:`ENVO_BRANCHES`.
+    """
+    key = _cache_key(value, ontology, "ols4-text", branch)
+    if use_cache:
+        cached = _cache_read(key)
+        if cached is not None:
+            try:
+                return [OntologyTerm(**d) for d in cached]
+            except Exception:
+                pass
+    try:
+        terms = _search_with_branch(value, ontology, session, branch)
+    except LookupFailed as exc:
+        logger.warning("%s; not caching", exc)
+        return []
+    except Exception:
+        logger.exception("search_text failed for value=%r ontology=%r", value, ontology)
+        return []
+    terms = [replace(t, matched_value=value) for t in terms]
     if use_cache:
         _cache_write(key, [t.to_dict() for t in terms])
     return terms

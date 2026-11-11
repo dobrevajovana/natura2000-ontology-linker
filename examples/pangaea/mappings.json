@@ -1,0 +1,391 @@
+[
+ {
+  "source_id": "pangaea_habitat_17",
+  "source_label": "Cold desert",
+  "target_uri": "http://purl.obolibrary.org/obo/ENVO_01000382",
+  "target_label": "cold desert",
+  "match_type": "skos:exactMatch",
+  "confidence": 1.0,
+  "source_ontology": "ols4_envo",
+  "method": "ols4_lexical"
+ },
+ {
+  "source_id": "pangaea_habitat_26",
+  "source_label": "Temperate deciduous forest",
+  "target_uri": "http://purl.obolibrary.org/obo/ENVO_01000385",
+  "target_label": "temperate deciduous broadleaf forest",
+  "match_type": "skos:closeMatch",
+  "confidence": 0.875,
+  "source_ontology": "ols4_envo",
+  "method": "combined",
+  "vector_score": 0.5532
+ },
+ {
+  "source_id": "pangaea_habitat_26",
+  "source_label": "Temperate deciduous forest",
+  "target_uri": "http://purl.obolibrary.org/obo/ENVO_01000386",
+  "target_label": "temperate deciduous needleleaf forest",
+  "match_type": "skos:closeMatch",
+  "confidence": 0.825,
+  "source_ontology": "ols4_envo",
+  "method": "ols4_lexical"
+ },
+ {
+  "source_id": "pangaea_habitat_29",
+  "source_label": "Biome",
+  "target_uri": "http://purl.obolibrary.org/obo/ENVO_00000428",
+  "target_label": "biome",
+  "match_type": "skos:exactMatch",
+  "confidence": 1.0,
+  "source_ontology": "ols4_envo",
+  "method": "ols4_lexical"
+ },
+ {
+  "source_id": "pangaea_species_00",
+  "source_label": "Bulimina marginata",
+  "target_uri": "https://www.gbif.org/species/7737079",
+  "target_label": "Bulimina marginata",
+  "match_type": "skos:exactMatch",
+  "confidence": 1.0,
+  "source_ontology": "gbif",
+  "method": "gbif_backbone_match"
+ },
+ {
+  "source_id": "pangaea_species_01",
+  "source_label": "Cibicides lobatulus",
+  "target_uri": "https://www.gbif.org/species/7532899",
+  "target_label": "Cibicides lobatulus",
+  "match_type": "skos:exactMatch",
+  "confidence": 1.0,
+  "source_ontology": "gbif",
+  "method": "gbif_backbone_match"
+ },
+ {
+  "source_id": "pangaea_species_02",
+  "source_label": "Hyalinea balthica",
+  "target_uri": "https://www.gbif.org/species/4381554",
+  "target_label": "Hyalinea balthica",
+  "match_type": "skos:exactMatch",
+  "confidence": 1.0,
+  "source_ontology": "gbif",
+  "method": "gbif_backbone_match"
+ },
+ {
+  "source_id": "pangaea_species_03",
+  "source_label": "Uvigerina peregrina",
+  "target_uri": "https://www.gbif.org/species/7519513",
+  "target_label": "Uvigerina peregrina",
+  "match_type": "skos:exactMatch",
+  "confidence": 1.0,
+  "source_ontology": "gbif",
+  "method": "gbif_backbone_match"
+ },
+ {
+  "source_id": "pangaea_species_04",
+  "source_label": "Melonis barleeanus",
+  "target_uri": "https://www.gbif.org/species/4381944",
+  "target_label": "Melonis barleeanus",
+  "match_type": "skos:exactMatch",
+  "confidence": 1.0,
+  "source_ontology": "gbif",
+  "method": "gbif_backbone_match",
+  "note": "synonym of Melonis affinis"
+ },
+ {
+  "source_id": "pangaea_species_05",
+  "source_label": "Cassidulina laevigata",
+  "target_uri": "https://www.gbif.org/species/8207297",
+  "target_label": "Cassidulina laevigata",
+  "match_type": "skos:exactMatch",
+  "confidence": 1.0,
+  "source_ontology": "gbif",
+  "method": "gbif_backbone_match"
+ },
+ {
+  "source_id": "pangaea_species_07",
+  "source_label": "Cyathea horrida",
+  "target_uri": "https://www.gbif.org/species/2650326",
+  "target_label": "Cyathea horrida",
+  "match_type": "skos:exactMatch",
+  "confidence": 1.0,
+  "source_ontology": "gbif",
+  "method": "gbif_backbone_match"
+ },
+ {
+  "source_id": "pangaea_species_08",
+  "source_label": "Lycopodium australianum",
+  "target_uri": "https://www.gbif.org/species/3991744",
+  "target_label": "Lycopodium australianum",
+  "match_type": "skos:exactMatch",
+  "confidence": 1.0,
+  "source_ontology": "gbif",
+  "method": "gbif_backbone_match",
+  "note": "synonym of Huperzia australiana"
+ },
+ {
+  "source_id": "pangaea_species_09",
+  "source_label": "Elphidium sp.",
+  "target_uri": "https://www.gbif.org/species/8392966",
+  "target_label": "Elphidium",
+  "match_type": "skos:closeMatch",
+  "confidence": 0.7,
+  "source_ontology": "gbif",
+  "method": "gbif_backbone_match",
+  "review": true
+ },
+ {
+  "source_id": "pangaea_species_10",
+  "source_label": "Bolivina sp.",
+  "target_uri": "https://www.gbif.org/species/8368944",
+  "target_label": "Bolivina",
+  "match_type": "skos:closeMatch",
+  "confidence": 0.7,
+  "source_ontology": "gbif",
+  "method": "gbif_backbone_match",
+  "review": true
+ },
+ {
+  "source_id": "pangaea_species_11",
+  "source_label": "Gavelinopsis sp.",
+  "target_uri": "https://www.gbif.org/species/8007695",
+  "target_label": "Gavelinopsis",
+  "match_type": "skos:closeMatch",
+  "confidence": 0.7,
+  "source_ontology": "gbif",
+  "method": "gbif_backbone_match",
+  "review": true
+ },
+ {
+  "source_id": "pangaea_species_12",
+  "source_label": "Dalbergia sp.",
+  "target_uri": "https://www.gbif.org/species/2968358",
+  "target_label": "Dalbergia",
+  "match_type": "skos:closeMatch",
+  "confidence": 0.7,
+  "source_ontology": "gbif",
+  "method": "gbif_backbone_match",
+  "review": true
+ },
+ {
+  "source_id": "pangaea_species_06",
+  "source_label": "Fissurina marginata",
+  "target_uri": "http://www.wikidata.org/entity/Q10495845",
+  "target_label": "Fissurina marginata",
+  "match_type": "skos:exactMatch",
+  "confidence": 1.0,
+  "source_ontology": "wikidata",
+  "method": "wikidata_p225_taxon_name"
+ },
+ {
+  "source_id": "pangaea_species_06",
+  "source_label": "Fissurina marginata",
+  "target_uri": "http://purl.obolibrary.org/obo/NCBITaxon_299548",
+  "target_label": "Fissurina marginata",
+  "match_type": "skos:exactMatch",
+  "confidence": 1.0,
+  "source_ontology": "ols4_ncbitaxon",
+  "method": "wikidata_p685_ncbi"
+ },
+ {
+  "source_id": "pangaea_species_06",
+  "source_label": "Fissurina marginata",
+  "target_uri": "https://www.gbif.org/species/5425485",
+  "target_label": "Fissurina marginata",
+  "match_type": "skos:exactMatch",
+  "confidence": 1.0,
+  "source_ontology": "gbif",
+  "method": "wikidata_p846_gbif"
+ },
+ {
+  "source_id": "pangaea_species_07",
+  "source_label": "Cyathea horrida",
+  "target_uri": "http://www.wikidata.org/entity/Q17138085",
+  "target_label": "Cyathea horrida",
+  "match_type": "skos:exactMatch",
+  "confidence": 1.0,
+  "source_ontology": "wikidata",
+  "method": "wikidata_p225_taxon_name"
+ },
+ {
+  "source_id": "pangaea_species_07",
+  "source_label": "Cyathea horrida",
+  "target_uri": "http://purl.obolibrary.org/obo/NCBITaxon_411281",
+  "target_label": "Cyathea horrida",
+  "match_type": "skos:exactMatch",
+  "confidence": 1.0,
+  "source_ontology": "ols4_ncbitaxon",
+  "method": "wikidata_p685_ncbi"
+ },
+ {
+  "source_id": "pangaea_species_00",
+  "source_label": "Bulimina marginata",
+  "target_uri": "http://www.wikidata.org/entity/Q23750804",
+  "target_label": "Bulimina marginata",
+  "match_type": "skos:exactMatch",
+  "confidence": 1.0,
+  "source_ontology": "wikidata",
+  "method": "wikidata_p225_taxon_name"
+ },
+ {
+  "source_id": "pangaea_species_00",
+  "source_label": "Bulimina marginata",
+  "target_uri": "http://purl.obolibrary.org/obo/NCBITaxon_313259",
+  "target_label": "Bulimina marginata",
+  "match_type": "skos:exactMatch",
+  "confidence": 1.0,
+  "source_ontology": "ols4_ncbitaxon",
+  "method": "wikidata_p685_ncbi"
+ },
+ {
+  "source_id": "pangaea_species_03",
+  "source_label": "Uvigerina peregrina",
+  "target_uri": "http://www.wikidata.org/entity/Q23751441",
+  "target_label": "Uvigerina peregrina",
+  "match_type": "skos:exactMatch",
+  "confidence": 1.0,
+  "source_ontology": "wikidata",
+  "method": "wikidata_p225_taxon_name"
+ },
+ {
+  "source_id": "pangaea_species_03",
+  "source_label": "Uvigerina peregrina",
+  "target_uri": "http://purl.obolibrary.org/obo/NCBITaxon_212521",
+  "target_label": "Uvigerina peregrina",
+  "match_type": "skos:exactMatch",
+  "confidence": 1.0,
+  "source_ontology": "ols4_ncbitaxon",
+  "method": "wikidata_p685_ncbi"
+ },
+ {
+  "source_id": "pangaea_species_04",
+  "source_label": "Melonis barleeanus",
+  "target_uri": "http://www.wikidata.org/entity/Q23754593",
+  "target_label": "Melonis barleeanus",
+  "match_type": "skos:exactMatch",
+  "confidence": 1.0,
+  "source_ontology": "wikidata",
+  "method": "wikidata_p225_taxon_name"
+ },
+ {
+  "source_id": "pangaea_species_04",
+  "source_label": "Melonis barleeanus",
+  "target_uri": "http://purl.obolibrary.org/obo/NCBITaxon_212515",
+  "target_label": "Melonis barleeanus",
+  "match_type": "skos:exactMatch",
+  "confidence": 1.0,
+  "source_ontology": "ols4_ncbitaxon",
+  "method": "wikidata_p685_ncbi"
+ },
+ {
+  "source_id": "pangaea_species_02",
+  "source_label": "Hyalinea balthica",
+  "target_uri": "http://www.wikidata.org/entity/Q23754922",
+  "target_label": "Hyalinea balthica",
+  "match_type": "skos:exactMatch",
+  "confidence": 1.0,
+  "source_ontology": "wikidata",
+  "method": "wikidata_p225_taxon_name"
+ },
+ {
+  "source_id": "pangaea_species_02",
+  "source_label": "Hyalinea balthica",
+  "target_uri": "http://purl.obolibrary.org/obo/NCBITaxon_203415",
+  "target_label": "Hyalinea balthica",
+  "match_type": "skos:exactMatch",
+  "confidence": 1.0,
+  "source_ontology": "ols4_ncbitaxon",
+  "method": "wikidata_p685_ncbi"
+ },
+ {
+  "source_id": "pangaea_species_05",
+  "source_label": "Cassidulina laevigata",
+  "target_uri": "http://www.wikidata.org/entity/Q23798177",
+  "target_label": "Cassidulina laevigata",
+  "match_type": "skos:exactMatch",
+  "confidence": 1.0,
+  "source_ontology": "wikidata",
+  "method": "wikidata_p225_taxon_name"
+ },
+ {
+  "source_id": "pangaea_species_05",
+  "source_label": "Cassidulina laevigata",
+  "target_uri": "http://purl.obolibrary.org/obo/NCBITaxon_325261",
+  "target_label": "Cassidulina laevigata",
+  "match_type": "skos:exactMatch",
+  "confidence": 1.0,
+  "source_ontology": "ols4_ncbitaxon",
+  "method": "wikidata_p685_ncbi"
+ },
+ {
+  "source_id": "pangaea_species_08",
+  "source_label": "Lycopodium australianum",
+  "target_uri": "http://www.wikidata.org/entity/Q65942775",
+  "target_label": "Lycopodium australianum",
+  "match_type": "skos:exactMatch",
+  "confidence": 1.0,
+  "source_ontology": "wikidata",
+  "method": "wikidata_p225_taxon_name"
+ },
+ {
+  "source_id": "pangaea_species_09",
+  "source_label": "Elphidium sp.",
+  "target_uri": "http://purl.obolibrary.org/obo/NCBITaxon_1747686",
+  "target_label": "Elphidium sp.",
+  "match_type": "skos:exactMatch",
+  "confidence": 0.95,
+  "source_ontology": "ols4_ncbitaxon",
+  "method": "ols4_exact_name"
+ },
+ {
+  "source_id": "pangaea_species_10",
+  "source_label": "Bolivina sp.",
+  "target_uri": "http://purl.obolibrary.org/obo/NCBITaxon_46084",
+  "target_label": "Bolivina sp.",
+  "match_type": "skos:exactMatch",
+  "confidence": 0.95,
+  "source_ontology": "ols4_ncbitaxon",
+  "method": "ols4_exact_name"
+ },
+ {
+  "source_id": "pangaea_species_12",
+  "source_label": "Dalbergia sp.",
+  "target_uri": "http://purl.obolibrary.org/obo/NCBITaxon_3387769",
+  "target_label": "Dalbergia sp.",
+  "match_type": "skos:exactMatch",
+  "confidence": 0.95,
+  "source_ontology": "ols4_ncbitaxon",
+  "method": "ols4_exact_name"
+ },
+ {
+  "source_id": "pangaea_species_08",
+  "source_label": "Lycopodium australianum",
+  "target_uri": "http://dbpedia.org/resource/Lycopodium_australianum",
+  "target_label": "Lycopodium australianum",
+  "match_type": "skos:exactMatch",
+  "confidence": 0.9,
+  "source_ontology": "dbpedia",
+  "method": "dbpedia_direct_uri"
+ },
+ {
+  "source_id": "pangaea_habitat_22",
+  "source_label": "Cold deciduous forest",
+  "target_uri": "http://purl.obolibrary.org/obo/ENVO_01000816",
+  "target_label": "area of deciduous forest",
+  "match_type": "skos:relatedMatch",
+  "confidence": 0.5574,
+  "source_ontology": "ols4_envo",
+  "method": "vector_similarity",
+  "review": true
+ },
+ {
+  "source_id": "pangaea_habitat_26",
+  "source_label": "Temperate deciduous forest",
+  "target_uri": "http://purl.obolibrary.org/obo/ENVO_01000816",
+  "target_label": "area of deciduous forest",
+  "match_type": "skos:relatedMatch",
+  "confidence": 0.5742,
+  "source_ontology": "ols4_envo",
+  "method": "vector_similarity",
+  "review": true
+ }
+]

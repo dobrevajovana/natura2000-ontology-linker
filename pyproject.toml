@@ -1,0 +1,23 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "verdant-validator"
+version = "0.1.0"
+description = "VERDANT validator: check and review predicted ontology mappings from any source, in Python or on a review page."
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = ["requests>=2.31", "flask>=3.0"]
+
+[project.optional-dependencies]
+excel = ["pandas>=2.0", "openpyxl>=3.1"]
+
+[project.scripts]
+verdant-validate = "verdant_validator.__main__:main"
+
+[tool.setuptools]
+packages = ["verdant_validator"]
+
+[tool.setuptools.package-data]
+verdant_validator = ["templates/*.html"]

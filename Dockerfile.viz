@@ -10,6 +10,10 @@ COPY viz/ ./viz/
 COPY geoapp/ ./geoapp/
 # the MFD habitat ontology viewer is served at /mfd/
 COPY mfd/ ./mfd/
+# the cloud samples viewer (ENA PRJEB54740) is served at /cloud/
+COPY cloud/ ./cloud/
+# the VERDANT validator (checks and expert review of any mappings) at /validate/
+COPY verdant_validator/ ./verdant_validator/
 
 RUN mkdir -p /data
 

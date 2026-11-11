@@ -26,6 +26,9 @@ services:
       # history, and mfd-match-reviews.csv, the current state). Not in OneDrive:
       # Docker Desktop cannot write there. Change the folder with MFD_REVIEWS_DIR.
       - ${MFD_REVIEWS_DIR:-${HOME}/natura2000-reviews}:/reviews
+      # Mapping files to validate at /validate/: drop any linker output, SSSOM or table here
+      # (or upload it on the page). Decisions go to the reviews folder, under validate/.
+      - ${VALIDATE_DIR:-${HOME}/natura2000-validate}:/incoming
     env_file:
       - path: .env          # optional: copy .env.example to .env to change settings
         required: false
@@ -35,6 +38,12 @@ services:
       - DATA_DIR=/data
       - MFD_DATA_DIR=/mfd_data
       - MFD_REVIEWS_FILE=/reviews/reviews.jsonl
+      # The cloud samples viewer at /cloud/: data in the same volume (cloud/),
+      # reviews beside the MFD ones as cloud-reviews.jsonl and cloud-match-reviews.csv.
+      - CLOUD_DATA_DIR=/mfd_data
+      - CLOUD_REVIEWS_FILE=/reviews/cloud-reviews.jsonl
+      - VALIDATE_DIR=/incoming
+      - VALIDATE_REVIEWS_DIR=/reviews/validate
     profiles:
       - viz
 

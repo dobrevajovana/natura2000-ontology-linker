@@ -340,6 +340,153 @@ There is no login: anyone who can open the page can review under any name, so ru
 
 The ontology and the graph are rebuilt on every start (the download is cached); the compose file mounts the pipeline's volume read-only for the linker output, so restart the viewer after a new pipeline run. Without pipeline output the graph shows the MFD crosswalk only.
 
+## Cloud Samples Viewer
+
+`/cloud/` on the main viewer (or `python -m cloud.app` on port 8096) is the
+validation tab for the cloud project *Photosynthetic biodiversity and activity
+in clouds* (ENA [PRJEB54740](https://www.ebi.ac.uk/ena/browser/view/PRJEB54740)).
+
+**Inputs** are only what people decide: `cloud/plan.json` (the project
+accession, the metadata plan and its themes) and, optionally, a list of air
+metagenome samples (`--air-list air_sample.tsv`). Everything else is looked up
+by function (`cloud/auto.py`, `cloud/air.py`) and cached under
+`data/cloud/raw/`, so a rebuild is quick and works offline.
+
+The steps of `python -m cloud.build`:
+
+1. **Runs**: every run of the project from the ENA portal; study title, centre
+   and secondary accession from ENA's study record.
+2. **Sample type and library**: the word each sample name ends in
+   (`ADN20191002CLOUD` → *cloud*) and ENA's library source
+   (`METATRANSCRIPTOMIC` → *metatranscriptome*). A name whose date disagrees
+   with ENA's collection date is flagged.
+3. **Record text → ENVO / NCBITaxon** with geoapp's calibrated OLS4 matcher.
+   This covers the MIxS environment fields, the sample type, and the organism
+   as "<type> metagenome" and "<broad context> metagenome", plus ENA's own
+   `tax_id`.
+4. **Vocabularies by rule**:
+   - ENVO environmental materials for the sample type;
+   - OBI assays for the library (inside OBI's *assay* branch);
+   - the GOLD ecosystem path that names the sample type or its context and
+     matches its setting (indoor/outdoor). Its words are linked to ENVO through
+     the gold-ontology project's mappings, which are mostly lexical; each link
+     shows how it was made;
+   - the MGnify biome on the same path, checked against MGnify's biome API;
+   - NCBI Taxonomy lineages;
+   - CF Standard Names and ENVO for the plan's measurements, by their words.
+5. **Each run's own terms**: per role (material, ecosystem, organism, assay)
+   the best hit by rule, replaced by reviewed terms once experts decide.
+6. **Site**: the named landform or observatory at the coordinates, from
+   Wikidata.
+7. **Repositories**: ENA and MGnify are checked on every build, MicrobiomeDB
+   too. The last definite answer is kept with its date when a service doesn't
+   answer. MicrobeAtlas (browser challenge), Qiita (login) and GOLD studies
+   (token) can't be checked by a program, and the page says so.
+8. **Air metagenomes**: every sample with taxon 655179 (air metagenome),
+   fetched with ENA's `tax_eq(655179)`. This is the same set as the
+   colleagues' `air_sample.tsv`; with `--air-list` the list is compared and
+   used.
+   - The environment triad is read.
+   - ENVO IDs written in records are taken, unless the words beside them say
+     something else ("atmosphere [ENVO:01000004]", a sea biome). Those go to a
+     conflicts table.
+   - Free text used by 3 or more samples is searched in OLS4.
+   - Samples are placed on a map with a rough setting, and those most like the
+     cloud study are listed.
+   - Texts used by 20 or more samples become reviewable.
+
+**Tabs:**
+- Overview
+- Validate (every predicted term, filterable by where the text comes from)
+- Graph (runs grouped or one by one, with their terms)
+- Timeline
+- Samples
+- Air metagenomes
+
+**Reviews** follow the same rules as the MFD viewer. They are saved as
+`cloud-reviews.jsonl` (every decision) and `cloud-match-reviews.csv` (the
+current state) in the reviews folder, with CSV and SSSOM exports.
+
+The first build searches OLS4 for a few hundred texts, which takes about 10–15
+minutes. The main viewer runs it in the background on start, so `:8080` is up
+at once.
+
+## VERDANT validator (any mapping data, in Python)
+
+`verdant_validator/` is an importable package for checking and reviewing
+predicted mappings, whatever produced them. Examples are the Natura 2000
+linker, the PANGAEA experiment, the MFD and cloud viewers, SSSOM files or a
+spreadsheet. The MFD and cloud viewers use its review store.
+
+```bash
+pip install "git+https://github.com/dobrevajovana/natura2000-ontology-linker.git@verdant-validator"   # or: pip install -e .
+```
+
+```python
+from verdant_validator import Validator
+
+v = Validator("data_pangaea/mappings.json", reviews="reviews/pangaea.jsonl")
+v.check(online=True)                        # automatic checks
+for f in v.findings(level="warning"):       # what they found
+    print(f["subject"], "->", f["object"], ":", f["message"])
+
+m = v.pending()[0]                          # open links, those the checks flag first
+v.reject(m["key"], reviewer="Jovana", comment="GBIF: a synonym of Melonis affinis")
+v.accept(other_key, reviewer="Jovana", match_type="closeMatch")
+v.summary()                                 # counts by source, match type, check and decision
+v.to_dataframe()                            # every link with its findings and decision (pandas)
+v.to_sssom("pangaea.reviewed.sssom.tsv")    # decided links; a rejected one carries predicate_modifier Not
+v.serve()                                   # or decide on the review page (same reviews file)
+```
+
+**Reads:**
+- the linker's `mappings.json` (with `terms.json` beside it);
+- SSSOM TSV;
+- CSV, TSV or Excel tables with SSSOM or linker column names;
+- the PANGAEA experiment's comparison sheet;
+- the viewers' `graph.json`;
+- a list of dicts.
+
+**Automatic checks** run before anyone reviews.
+- Offline:
+  - the match type is a SKOS mapping type;
+  - the confidence is between 0 and 1;
+  - the object is an identifier, not a label;
+  - the same pair isn't given two match types;
+  - a name doesn't have several exact matches in one source;
+  - an exact match's labels share a word.
+- Online (answers cached in `~/.cache/verdant-validator`):
+  - the OBO term exists in OLS4, isn't obsolete, and its label or a synonym
+    agrees;
+  - a GBIF species ID has the same name and is the accepted name, not a
+    synonym;
+  - a Wikidata item's taxon name or label agrees.
+
+**Decisions** (correct, optionally with a corrected match type; incorrect; or
+unsure; with an optional comment) are appended to a `.jsonl` file. Nothing is
+rewritten, and reviewers who disagree are shown as "disputed". Decisions made
+in Python and on the review page go to the same file.
+
+**Example:** `python examples/validate_pangaea.py` validates the PANGAEA test.
+Its input is the linker run on the 30 names of the `pangaea-species-biome-test`
+branch, in `examples/pangaea/`.
+- **What it finds:** 38 links for 17 names; 13 names got no link. GBIF lists
+  two exact matches as synonyms (*Melonis barleeanus* → *Melonis affinis*,
+  *Lycopodium australianum* → *Huperzia australiana*).
+- **Options:** `--reviewer NAME` asks for a decision on each open link;
+  `--serve` opens the review page instead.
+
+**Shell:**
+- `python -m verdant_validator check FILE --online` exits with code 1 if any
+  link has an error.
+- `python -m verdant_validator serve --folder incoming/`
+- `python -m verdant_validator export FILE --reviews FILE.jsonl --format sssom`
+
+**In the viewer:** `localhost:8080/validate/` lists every file in
+`~/natura2000-validate` (`VALIDATE_DIR`), and files can also be uploaded there.
+
+The matcher benchmark stays in `validation/` (`python -m validation.benchmark`).
+
 ## API Endpoints
 
 | Endpoint | Description |

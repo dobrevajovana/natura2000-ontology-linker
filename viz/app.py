@@ -591,12 +591,23 @@ def api_remove_ontology(ontology: str):
 
 
 # ---------------------------------------------------------------------------
-# The MFD habitat ontology viewer (mfd/) lives under /mfd/ on the same server.
-# Its page uses relative URLs, so it works there and standalone alike.
+# The MFD habitat ontology viewer (mfd/) lives under /mfd/ on the same server,
+# the cloud samples viewer (cloud/) under /cloud/. Their pages use relative
+# URLs, so they work there and standalone alike.
 # ---------------------------------------------------------------------------
+from cloud import app as cloud_app  # noqa: E402
 from mfd import app as mfd_app  # noqa: E402
 
-app.wsgi_app = DispatcherMiddleware(app.wsgi_app, {"/mfd": mfd_app.app.wsgi_app})
+# The validation tool (validation/) at /validate/: every file in VALIDATE_DIR (and every
+# upload) is a dataset to check and review; decisions go to VALIDATE_REVIEWS_DIR.
+from verdant_validator.web import create_app as validation_app  # noqa: E402
+
+VALIDATE_DIR = Path(os.environ.get("VALIDATE_DIR", Path(DATA_DIR) / "validate" / "incoming"))
+VALIDATE_REVIEWS_DIR = Path(os.environ.get("VALIDATE_REVIEWS_DIR", Path(DATA_DIR) / "validate" / "reviews"))
+validate = validation_app(folder=VALIDATE_DIR, reviews_dir=VALIDATE_REVIEWS_DIR, title="Mapping validation")
+
+app.wsgi_app = DispatcherMiddleware(app.wsgi_app, {"/mfd": mfd_app.app.wsgi_app, "/cloud": cloud_app.app.wsgi_app,
+                                                   "/validate": validate.wsgi_app})
 
 
 @app.route("/mfd")
@@ -604,8 +615,23 @@ def mfd_slash():
     return redirect("/mfd/", code=301)
 
 
+@app.route("/cloud")
+def cloud_slash():
+    return redirect("/cloud/", code=301)
+
+
+@app.route("/validate")
+def validate_slash():
+    return redirect("/validate/", code=301)
+
+
 if __name__ == "__main__":
     port = int(os.environ.get("VIZ_PORT", 8080))
     mfd_app.prepare(strict=False)
-    logger.info("Starting visualization server on port %d, data dir: %s (MFD viewer at /mfd/)", port, DATA_DIR)
+    # The cloud build can take minutes the first time (OLS4 searches for every air
+    # metagenome text); run it beside the server so the viewers are up at once.
+    import threading
+    threading.Thread(target=cloud_app.prepare, kwargs={"strict": False}, daemon=True, name="cloud-build").start()
+    logger.info("Starting visualization server on port %d, data dir: %s (MFD viewer at /mfd/, cloud samples at /cloud/)",
+                port, DATA_DIR)
     app.run(host="0.0.0.0", port=port, debug=False, threaded=True)

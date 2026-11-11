@@ -1,0 +1,41 @@
+{
+  "_about": "Inputs of the cloud build. Everything else is looked up by cloud/auto.py. Point CLOUD_PLAN (or --plan) at another file for another study.",
+  "project": "PRJEB54740",
+  "title": "Photosynthetic biodiversity and activity in clouds",
+  "themes": ["Environmental microbiology", "Aeromicrobiome", "Photosynthesis", "Taxonomic diversity", "Physiological state",
+             "Metabolic pathways", "Interactions with cloud chemistry", "Biogeographical patterns", "Temporal dynamics"],
+  "_metadata_plan": "The project's metadata plan, as the colleagues wrote it. ena_fields: where ENA would hold the item (empty: no ENA field). measure: true for items whose values are measurements, which are linked to CF Standard Names and ENVO.",
+  "metadata_plan": [
+    {"group": "Location metadata", "items": [
+      {"item": "Coordinates", "ena_fields": ["lat", "lon"]},
+      {"item": "Altitude", "ena_fields": ["altitude"], "measure": true},
+      {"item": "Facility type", "ena_fields": []}]},
+    {"group": "Sampling condition", "items": [
+      {"item": "Height above ground", "ena_fields": [], "measure": true},
+      {"item": "Dates", "ena_fields": ["collection_date_start", "collection_date_end"]},
+      {"item": "Sample", "ena_fields": ["sample_alias"]}]},
+    {"group": "Meteorological condition", "items": [
+      {"item": "Temperature", "ena_fields": ["temperature"], "measure": true},
+      {"item": "Wind speed", "ena_fields": [], "measure": true},
+      {"item": "Wind direction", "ena_fields": [], "measure": true},
+      {"item": "Humidity", "ena_fields": [], "measure": true},
+      {"item": "Boundary layer height", "ena_fields": [], "measure": true},
+      {"item": "Air mass origin", "ena_fields": [], "measure": true},
+      {"item": "Liquid water content", "ena_fields": [], "measure": true},
+      {"item": "pH", "ena_fields": [], "measure": true},
+      {"item": "Ionic concentration", "ena_fields": [], "measure": true},
+      {"item": "Amino acid / oligo LC-MS", "ena_fields": []},
+      {"item": "Isotope", "ena_fields": []}]},
+    {"group": "Wet-lab", "items": [
+      {"item": "Cell counts", "ena_fields": [], "measure": true},
+      {"item": "Chlorophyll concentration", "ena_fields": [], "measure": true}]},
+    {"group": "Sequencing", "items": [
+      {"item": "Library source (metagenome / metatranscriptome)", "ena_fields": ["library_source"]},
+      {"item": "Library strategy and instrument", "ena_fields": ["library_strategy", "instrument_model"]},
+      {"item": "Read counts", "ena_fields": ["read_count"]},
+      {"item": "Taxonomic composition", "ena_fields": []},
+      {"item": "Functional profiling", "ena_fields": []}]}
+  ],
+  "air_list": null,
+  "_air_list": "Optional: a TSV whose first column is sample accessions (such as air_sample.tsv). When set, the air metagenome map is limited to it and compared with ENA."
+}
