@@ -10,6 +10,8 @@ COPY viz/ ./viz/
 COPY geoapp/ ./geoapp/
 # the MFD habitat ontology viewer is served at /mfd/
 COPY mfd/ ./mfd/
+# the aerobiome vocabulary viewer is served at /air/
+COPY air/ ./air/
 
 RUN mkdir -p /data
 

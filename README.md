@@ -340,6 +340,38 @@ There is no login: anyone who can open the page can review under any name, so ru
 
 The ontology and the graph are rebuilt on every start (the download is cached); the compose file mounts the pipeline's volume read-only for the linker output, so restart the viewer after a new pipeline run. Without pipeline output the graph shows the MFD crosswalk only.
 
+## Aerobiome KG
+
+A knowledge graph of the environment terms in air-metagenome samples, linked to ENVO, GOLD, EMPO and CHEBI. Natura 2000 is not involved. Every source is listed in [`air/SOURCES.md`](air/SOURCES.md).
+
+1. **Samples** (`air/ena.py`): ENA's samples under taxon 655179 (air metagenome), `tax_tree(655179)`.
+2. **Records** (`air/build.py`): each sample's BioSamples JSON (fetched and cached by `geoapp/fetch.py`).
+3. **Fields read**: the MIxS environment fields (broad-scale environment, local environment, environmental medium, isolation source, under their many spellings), `empo_1/2/3`, GOLD ecosystem fields, chemical fields (`pollutants`, `volatile_org_comp`, `chem_administration`) and chemicals measured by MIxS fields such as `carb_dioxide`. `title` and `description` are not read. Each distinct value becomes a term.
+4. **Matching**:
+   - **ENVO**: IDs the record carries (from the archive or typed into the text) are used as they are. Otherwise the term is searched in ENVO with the calibrated OLS4 matcher (`geoapp/ontolink.py`): biome branch for broad scale, material branch for medium.
+   - **GOLD**: through the term's ENVO match, using the curated GOLD–ENVO mappings, then by name in `gold.obo`.
+   - **EMPO**: `empo_*` fields are matched to the 27 EMPO classes (built in, each with its class from ENVO's EMPO subset). Otherwise, air/aerosol evidence gives *Aerosol (non-saline)*, or *(saline)* for marine aerosol.
+   - **CHEBI**: chemicals are searched in CHEBI.
+5. **Hierarchy**:
+   - **Context tree** (left panel, like the MFD hierarchy): each sample's broad-scale › local › medium values, as it gives them; samples with none sit under their isolation source. Picking a branch shows only its samples' terms. In the graph, arrows run broad → local → medium.
+   - **GOLD by whole context**: each GOLD class names its own broad / local / medium ENVO terms (Outdoor Air: biome / atmosphere / air). A context whose terms match all of them is linked to that class, the most specific that fits, so *urban biome › atmosphere › air* reaches Outdoor Air rather than just Air.
+   - **Ontology trees**: matched GOLD and EMPO classes come with their parents (*Free-living › Non-saline › Aerosol (non-saline)*).
+   - IDs typed alone (`ENVO:00000428`) are named from OLS4 ("biome").
+
+Matches under 0.85, or to an ontology the field does not call for (a rare-disease ID for a biome), are flagged for review. Values with no match show faded: candidate gaps in the ontologies.
+
+```bash
+docker compose --profile viz build viz
+# 1. List the samples: all ~35,000, or every 70th (~500) to start
+docker compose --profile viz run --rm viz python -m air.ena --every 70
+# 2. Fetch the records, read the fields, match (GOLD is downloaded once; OLS4 lookups are cached)
+docker compose --profile viz run --rm viz python -m air.build
+# 3. Serve it: http://localhost:8080/air/
+docker compose --profile viz up -d
+```
+
+Output goes to `data/air/` in the viewer's volume: `accessions.txt`, `samples.json` (the fields read per sample), `graph.json`, and the downloaded GOLD files in `vocab/`. Reviews work as in the MFD viewer and are stored next to them, in `air-reviews.jsonl` and `air-match-reviews.csv`; exports at `/air/api/reviews/export.csv` and `/air/api/reviews/export.sssom.tsv`.
+
 ## API Endpoints
 
 | Endpoint | Description |
