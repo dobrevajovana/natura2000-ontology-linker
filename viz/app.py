@@ -595,8 +595,9 @@ def api_remove_ontology(ontology: str):
 # Its page uses relative URLs, so it works there and standalone alike.
 # ---------------------------------------------------------------------------
 from mfd import app as mfd_app  # noqa: E402
+from air import app as air_app  # noqa: E402
 
-app.wsgi_app = DispatcherMiddleware(app.wsgi_app, {"/mfd": mfd_app.app.wsgi_app})
+app.wsgi_app = DispatcherMiddleware(app.wsgi_app, {"/mfd": mfd_app.app.wsgi_app, "/air": air_app.app.wsgi_app})
 
 
 @app.route("/mfd")
@@ -604,8 +605,14 @@ def mfd_slash():
     return redirect("/mfd/", code=301)
 
 
+@app.route("/air")
+def air_slash():
+    return redirect("/air/", code=301)
+
+
 if __name__ == "__main__":
     port = int(os.environ.get("VIZ_PORT", 8080))
     mfd_app.prepare(strict=False)
-    logger.info("Starting visualization server on port %d, data dir: %s (MFD viewer at /mfd/)", port, DATA_DIR)
+    air_app.prepare(strict=False)
+    logger.info("Starting visualization server on port %d, data dir: %s (MFD viewer at /mfd/, aerobiome at /air/)", port, DATA_DIR)
     app.run(host="0.0.0.0", port=port, debug=False, threaded=True)

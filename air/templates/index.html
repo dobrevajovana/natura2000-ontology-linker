@@ -1,0 +1,591 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Aerobiome Vocabulary</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/cytoscape/3.28.1/cytoscape.min.js"></script>
+<style>
+  /* Same look as the MFD viewer (mfd/templates/index.html). */
+  :root {
+    --bg: #f5f6f8; --panel-bg: #ffffff; --border: #d9dce1; --text: #1b1e23; --text-muted: #5b6270;
+    --accent: #1565c0; --accent-contrast: #ffffff; --danger: #c62828; --ok: #2e7d32;
+    --input-bg: #ffffff; --shadow: 0 1px 3px rgba(0, 0, 0, 0.12); --chip-bg: #eef1f5;
+    --st-correct: var(--ok); --st-incorrect: var(--danger); --st-unsure: #b08800; --st-disputed: #c4561a;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #14161a; --panel-bg: #1c1f24; --border: #33383f; --text: #e7e9ec; --text-muted: #9aa1ab;
+      --accent: #5c9cea; --accent-contrast: #0d1117; --danger: #ef5350; --ok: #66bb6a;
+      --input-bg: #22262c; --shadow: 0 1px 3px rgba(0, 0, 0, 0.5); --chip-bg: #262a31;
+      --st-unsure: #e0c341; --st-disputed: #f0975a;
+    }
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; height: 100%; background: var(--bg); color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; font-size: 14px; }
+  button, input, select, textarea { font: inherit; color: inherit; }
+  [hidden] { display: none !important; }
+  a { color: var(--accent); }
+  .topbar { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 16px;
+    background: var(--panel-bg); border-bottom: 1px solid var(--border); }
+  .topbar h1 { font-size: 16px; margin: 0; }
+  .topbar-actions { display: flex; align-items: center; gap: 12px; font-size: 12px; color: var(--text-muted); }
+  .layout { display: flex; height: calc(100vh - 42px); min-height: 500px; }
+  .panel-controls { width: 340px; flex-shrink: 0; overflow-y: auto; padding: 12px; background: var(--panel-bg); border-right: 1px solid var(--border); }
+  .control-group { margin-bottom: 14px; padding-bottom: 14px; border-bottom: 1px solid var(--border); }
+  .control-group:last-child { border-bottom: none; }
+  .control-group h3, .control-group > label { display: block; font-weight: 600; margin: 0 0 6px; font-size: 12.5px;
+    color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.02em; }
+  input[type="search"], input[type="text"], select { width: 100%; padding: 6px 8px; border: 1px solid var(--border); border-radius: 6px; background: var(--input-bg); }
+  input[type="range"] { width: 100%; }
+  .check-list { display: flex; flex-direction: column; gap: 4px; }
+  .check-list label { display: flex; align-items: center; gap: 6px; font-size: 13px; cursor: pointer; }
+  .check-list .n { margin-left: auto; color: var(--text-muted); font-size: 12px; font-variant-numeric: tabular-nums; }
+  .swatch { display: inline-block; width: 10px; height: 10px; border-radius: 2px; flex-shrink: 0; }
+  .muted { color: var(--text-muted); font-size: 12px; }
+  .btn { padding: 6px 12px; border: 1px solid var(--border); border-radius: 6px; background: var(--panel-bg); cursor: pointer; }
+  .btn:hover { border-color: var(--accent); }
+  .btn-primary { background: var(--accent); color: var(--accent-contrast); border-color: var(--accent); }
+  .btn-small { padding: 3px 9px; font-size: 12px; }
+  .btn-row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-top: 8px; }
+  .stats-list { display: grid; gap: 4px; margin: 0; }
+  .stats-list > div { display: flex; justify-content: space-between; font-size: 13px; }
+  .stats-list dt { color: var(--text-muted); }
+  .stats-list dd { margin: 0; font-weight: 600; font-variant-numeric: tabular-nums; }
+  .main { flex: 1; position: relative; min-width: 0; }
+  #cy { width: 100%; height: 100%; background: var(--bg); }
+  .graph-info { position: absolute; left: 10px; bottom: 10px; padding: 6px 10px; border-radius: 6px; font-size: 12px;
+    color: var(--text-muted); background: var(--panel-bg); border: 1px solid var(--border); pointer-events: none; max-width: 420px; line-height: 1.45; }
+  .val-bar { display: flex; height: 8px; border-radius: 4px; overflow: hidden; background: var(--chip-bg); margin: 8px 0 6px; gap: 2px; }
+  .val-bar span { display: block; height: 100%; }
+  .val-legend { display: grid; grid-template-columns: auto 1fr auto; gap: 2px 8px; font-size: 12.5px; align-items: center; }
+  .val-legend .num { font-variant-numeric: tabular-nums; text-align: right; font-weight: 600; }
+  .detail-panel { position: fixed; top: 0; right: 0; width: 380px; max-width: 92vw; height: 100%; background: var(--panel-bg);
+    border-left: 1px solid var(--border); box-shadow: var(--shadow); z-index: 1000; overflow-y: auto; padding: 16px; }
+  .detail-close { position: absolute; top: 8px; right: 8px; font-size: 18px; line-height: 1; padding: 4px 8px; background: none; border: none; cursor: pointer; }
+  .detail-panel h2 { font-size: 16px; margin: 22px 0 6px; line-height: 1.35; word-break: break-word; }
+  .detail-meta { font-size: 12px; color: var(--text-muted); margin-bottom: 12px; line-height: 1.5; }
+  .detail-field { margin-bottom: 12px; }
+  .detail-field > label { display: block; font-size: 11.5px; text-transform: uppercase; letter-spacing: 0.02em; color: var(--text-muted); margin-bottom: 4px; }
+  .detail-field p { margin: 0; line-height: 1.5; }
+  .badge { display: inline-block; padding: 1px 7px; border-radius: 10px; font-size: 11px; color: #fff; }
+  .type-badge { font-size: 11px; padding: 1px 7px; border-radius: 10px; border: 1px solid currentColor; }
+  .type-exactMatch { color: var(--ok); } .type-closeMatch { color: #b08800; } .type-broadMatch, .type-narrowMatch { color: var(--accent); }
+  .type-relatedMatch { color: #c4561a; }
+  .conf-badge { font-size: 11px; padding: 1px 6px; border-radius: 8px; background: var(--chip-bg); font-variant-numeric: tabular-nums; }
+  .mappings-list { display: flex; flex-direction: column; gap: 8px; }
+  .mapping-card { border: 1px solid var(--border); border-left: 3px solid var(--card-color, var(--border)); border-radius: 6px; padding: 8px 10px; }
+  .mapping-card.focus { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .mapping-label { font-weight: 500; margin-bottom: 4px; }
+  .mapping-meta { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; font-size: 12px; color: var(--text-muted); }
+  .mapping-uri { font-size: 11.5px; word-break: break-all; display: block; margin-top: 4px; }
+  .chips { display: flex; flex-wrap: wrap; gap: 4px; }
+  .chip { font-size: 11.5px; padding: 1px 7px; border-radius: 8px; background: var(--chip-bg); }
+  .review { margin-top: 8px; padding-top: 8px; border-top: 1px dashed var(--border); font-size: 12.5px; }
+  .rv-status { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin-bottom: 6px; }
+  .rv-pill { font-size: 11px; padding: 1px 8px; border-radius: 10px; border: 1px solid currentColor; font-weight: 600; }
+  .st-correct { color: var(--st-correct); } .st-incorrect { color: var(--st-incorrect); } .st-unsure { color: var(--st-unsure); }
+  .st-disputed { color: var(--st-disputed); } .st-unreviewed { color: var(--text-muted); }
+  .rv-actions { display: flex; gap: 4px; flex-wrap: wrap; align-items: center; }
+  .rv-actions button { padding: 3px 9px; font-size: 12px; border: 1px solid var(--border); border-radius: 6px; background: var(--panel-bg); cursor: pointer; }
+  .rv-actions button[data-verdict="correct"] { color: var(--st-correct); }
+  .rv-actions button[data-verdict="incorrect"] { color: var(--st-incorrect); }
+  .rv-actions button[data-verdict="unsure"] { color: var(--st-unsure); }
+  .rv-actions select { width: auto; padding: 3px 6px; font-size: 12px; }
+  .review textarea { width: 100%; margin-top: 6px; min-height: 44px; padding: 6px 8px; border: 1px solid var(--border); border-radius: 6px;
+    background: var(--input-bg); font-size: 12.5px; resize: vertical; }
+  .rv-msg { color: var(--danger); font-size: 12px; margin-top: 4px; }
+  /* Context tree, as the MFD viewer's hierarchy */
+  .tree { margin: 0 -12px; max-height: 42vh; overflow-y: auto; }
+  .tree-row { display: flex; align-items: center; gap: 4px; padding: 3px 12px 3px 0; cursor: pointer; font-size: 13px; line-height: 1.35; }
+  .tree-row:hover { background: var(--chip-bg); }
+  .tree-row.sel { background: var(--accent); color: var(--accent-contrast); }
+  .tree-row .tw { width: 18px; flex: none; text-align: center; color: var(--text-muted); font-size: 9px; }
+  .tree-row.sel .tw, .tree-row.sel .code-chip { color: inherit; }
+  .tree-row .dot { width: 7px; height: 7px; border-radius: 50%; flex: none; }
+  .tree-row .lbl { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .code-chip { font-size: 11px; padding: 0 6px; border-radius: 8px; background: var(--chip-bg); color: var(--text-muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .tree-row.sel .code-chip { background: transparent; }
+  .kids { display: none; }
+  .open > .kids { display: block; }
+  .gap { padding: 8px 10px; border: 1px dashed var(--border); border-radius: 6px; color: var(--text-muted); font-size: 12.5px; line-height: 1.5; }
+  @media (max-width: 900px) {
+    .layout { flex-direction: column; height: auto; }
+    .panel-controls { width: auto; border-right: none; border-bottom: 1px solid var(--border); max-height: 50vh; }
+    .main { height: 70vh; }
+    .detail-panel { width: 100%; }
+  }
+</style>
+</head>
+<body>
+<header class="topbar">
+  <h1>Aerobiome Vocabulary</h1>
+  <div class="topbar-actions">
+    <a id="backLink" href="../" hidden>← Natura 2000 viewer</a>
+    <span id="loadStatus">Loading…</span>
+  </div>
+</header>
+
+<div class="layout">
+  <aside class="panel-controls">
+    <section class="control-group">
+      <label for="searchInput">Search</label>
+      <input type="search" id="searchInput" placeholder="e.g. air, urban, filter" autocomplete="off">
+    </section>
+
+    <section class="control-group">
+      <h3>Validation</h3>
+      <input type="text" id="reviewerName" placeholder="Your name (saved with each review)" maxlength="80" autocomplete="name" aria-label="Reviewer name">
+      <div class="val-bar" id="valBar" role="img"></div>
+      <div class="val-legend" id="valLegend"></div>
+      <select id="reviewFilter" style="margin-top:8px" aria-label="Show matches">
+        <option value="">All matches</option>
+        <option value="unreviewed">Not reviewed yet</option>
+        <option value="flagged">Flagged, not reviewed</option>
+        <option value="correct">Correct</option>
+        <option value="incorrect">Incorrect</option>
+        <option value="unsure">Unsure</option>
+        <option value="disputed">Reviewers disagree</option>
+      </select>
+      <div class="btn-row">
+        <button class="btn btn-primary btn-small" id="nextReview" type="button">Next to review</button>
+        <a class="muted" href="api/reviews/export.csv">CSV</a>
+        <a class="muted" href="api/reviews/export.sssom.tsv">SSSOM</a>
+      </div>
+    </section>
+
+    <section class="control-group">
+      <h3>Context hierarchy</h3>
+      <div class="muted" style="margin-bottom:6px">Broad-scale › local › medium, as each sample gives them (samples giving none sit under their isolation source). Pick a branch to see only its samples' terms; <span class="code-chip">GOLD</span> marks a context matched to a GOLD class.</div>
+      <div class="tree" id="tree" role="tree"></div>
+    </section>
+
+    <section class="control-group">
+      <h3>Fields</h3>
+      <div class="check-list" id="slotChecks"></div>
+      <label class="muted" style="display:flex;gap:6px;margin-top:8px;text-transform:none;font-weight:400;letter-spacing:0">
+        <input type="checkbox" id="showGaps" checked> Show terms with no match</label>
+    </section>
+
+    <section class="control-group">
+      <h3>Matched to</h3>
+      <div class="check-list" id="ontChecks"></div>
+    </section>
+
+    <section class="control-group">
+      <label for="minSamples">Used by at least <span id="minSamplesValue">1</span> sample(s)</label>
+      <input type="range" id="minSamples" min="1" max="20" step="1" value="1">
+      <label for="confSlider" style="margin-top:10px">Min confidence: <span id="confValue">0.00</span></label>
+      <input type="range" id="confSlider" min="0" max="1" step="0.05" value="0">
+    </section>
+
+    <section class="control-group">
+      <h3>Stats</h3>
+      <dl class="stats-list" id="statsList"></dl>
+    </section>
+  </aside>
+
+  <main class="main">
+    <div id="cy"></div>
+    <div class="graph-info" id="graphInfo"></div>
+  </main>
+</div>
+
+<aside class="detail-panel" id="detailPanel" hidden>
+  <button class="detail-close" id="detailClose" aria-label="Close">×</button>
+  <div id="detailContent"></div>
+</aside>
+
+<script>
+const $ = (id) => document.getElementById(id);
+const cssVar = (n) => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+const escHtml = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const safeUrl = (u) => /^https?:\/\//i.test(String(u || '')) ? u : '#';
+const shortMatch = (m) => (m || '').replace('skos:', '');
+if (/\/air\/?$/.test(location.pathname)) $('backLink').hidden = false;
+
+const SLOTS = {
+  env_broad_scale: { label: 'Broad-scale environment', color: '#2a78d6' },
+  env_local_scale: { label: 'Local environment', color: '#6250d6' },
+  env_medium: { label: 'Environmental medium', color: '#0f9d9a' },
+  isolation_source: { label: 'Isolation source', color: '#c2410c' },
+  empo: { label: 'EMPO category', color: '#8d6e63' },
+  gold_ecosystem: { label: 'GOLD ecosystem', color: '#a67c00' },
+  chemistry: { label: 'Chemicals', color: '#c2185b' },
+};
+const ONTS = { ENVO: '#27ae60', GOLD: '#e0a800', EMPO: '#795548', CHEBI: '#d81b60', UBERON: '#8e24aa', NCBITaxon: '#2e7d32' };
+const MAIN_ONTS = ['ENVO', 'GOLD', 'EMPO', 'CHEBI'];
+const ORIGINS = { ols4: 'found by search', biosamples: 'from the archive record', id_in_text: 'ID in the text',
+  via_envo: 'through its ENVO term (curated GOLD–ENVO mapping)', gold_name: 'by name in GOLD',
+  empo_field: 'from the empo field', empo_rule: 'air/aerosol rule',
+  gold_triad: 'GOLD class with the same broad / local / medium ENVO terms' };
+const CONTEXT_COLOR = '#1565c0';
+const OTHER = ['#9e9e9e', '#d81b60', '#6d4c41', '#546e7a', '#f4511e', '#039be5'];
+let otherCount = 0;
+const ontColor = (k) => ONTS[k] ??= OTHER[otherCount++ % OTHER.length];
+const STATUSES = [['correct', 'Correct'], ['incorrect', 'Incorrect'], ['unsure', 'Unsure'], ['disputed', 'Reviewers disagree'], ['unreviewed', 'Not reviewed']];
+
+let graph = { nodes: [], edges: [], meta: {}, tree: [] }, byId = {}, cy = null, reviews = {}, focusKey = null, lastDetail = null;
+let treeById = {}, treeKids = {}, selectedCtx = null;
+const hiddenSlots = new Set(), hiddenOnts = new Set();
+
+fetch('data/graph.json').then((r) => r.ok ? r.json() : null).then((g) => {
+  if (!g || !g.meta.samples) { $('loadStatus').textContent = 'No aerobiome data yet. Run python -m air.ena, then python -m air.build.'; return; }
+  graph = { tree: [], ...g };
+  graph.nodes.forEach((n) => byId[n.id] = n);
+  graph.tree.forEach((c) => { treeById[c.id] = c; (treeKids[c.parent ?? ''] ??= []).push(c); });
+  $('loadStatus').textContent = `${g.meta.samples} samples · ${g.meta.terms} terms · ${g.meta.contexts ?? 0} contexts`;
+  $('minSamples').max = Math.max(2, Math.min(50, ...graph.nodes.filter((n) => n.kind === 'air').map((n) => n.samples)));
+  drawChecks();
+  drawStats();
+  drawTree();
+  drawGraph();
+  loadReviews();
+});
+
+// ─── Context tree ────────────────────────────────────────────────────────────
+// The field a tree level usually holds; when a sample skips one, the row says which field it is.
+const LEVEL_SLOT = ['env_broad_scale', 'env_local_scale', 'env_medium'];
+const SLOT_SHORT = { env_broad_scale: 'broad', env_local_scale: 'local', env_medium: 'medium', isolation_source: 'isolation source' };
+
+function drawTree() {
+  const row = (c) => {
+    const kids = treeKids[c.id] || [];
+    const hint = c.slot !== LEVEL_SLOT[c.level] ? ` <span class="muted">${SLOT_SHORT[c.slot]}</span>` : '';
+    return `<div class="node" data-id="${escHtml(c.id)}" role="treeitem">
+      <div class="tree-row${c.id === selectedCtx ? ' sel' : ''}" style="padding-left:${c.level * 14}px" title="${escHtml(SLOTS[c.slot].label + ': ' + c.path.join(' › '))}">
+        <span class="tw">${kids.length ? '▸' : ''}</span><span class="dot" style="background:${SLOTS[c.slot].color}"></span>
+        <span class="lbl">${escHtml(c.label)}${hint}</span>${c.gold.length ? '<span class="code-chip">GOLD</span>' : ''}<span class="code-chip">${c.samples}</span>
+      </div>
+      ${kids.length ? `<div class="kids">${kids.map(row).join('')}</div>` : ''}</div>`;
+  };
+  const top = treeKids[''] || [];
+  $('tree').innerHTML = top.length ? top.map(row).join('') : '<div class="muted" style="padding:0 12px">No sample gives a broad, local or medium value.</div>';
+}
+
+function selectContext(id) {
+  selectedCtx = id && id !== selectedCtx ? id : null;
+  document.querySelectorAll('#tree .tree-row.sel').forEach((r) => r.classList.remove('sel'));
+  if (selectedCtx) {
+    for (let c = treeById[treeById[selectedCtx].parent]; c; c = treeById[c.parent]) {
+      const el = document.querySelector(`#tree .node[data-id="${CSS.escape(c.id)}"]`);
+      el?.classList.add('open');
+      const tw = el?.querySelector(':scope > .tree-row .tw');
+      if (tw) tw.textContent = '▾';
+    }
+    document.querySelector(`#tree .node[data-id="${CSS.escape(selectedCtx)}"] > .tree-row`)?.classList.add('sel');
+  }
+  drawGraph();
+  if (selectedCtx) showContextDetail(treeById[selectedCtx]); else $('detailPanel').hidden = true;
+}
+
+$('tree').addEventListener('click', (e) => {
+  const node = e.target.closest('.node');
+  if (!node) return;
+  if (e.target.closest('.tw')) { node.classList.toggle('open'); e.target.closest('.tw').textContent = node.classList.contains('open') ? '▾' : '▸'; return; }
+  selectContext(node.dataset.id);
+});
+const inContext = (id) => !selectedCtx || id === selectedCtx || id.startsWith(selectedCtx + ' > ');
+
+const matches = () => graph.edges.filter((e) => e.kind === 'match');
+const keyOf = (e) => `${e.source}|${e.target}`;
+
+function drawChecks() {
+  const air = graph.nodes.filter((n) => n.kind === 'air');
+  $('slotChecks').innerHTML = Object.entries(SLOTS).map(([k, s]) =>
+    `<label><input type="checkbox" data-slot="${k}" checked><span class="swatch" style="background:${s.color}"></span>${s.label}<span class="n">${air.filter((n) => n.slot === k).length}</span></label>`).join('');
+  const kinds = [...new Set(matches().map((e) => byId[e.target].kind))];
+  const rank = (k) => MAIN_ONTS.includes(k) ? MAIN_ONTS.indexOf(k) : MAIN_ONTS.length;
+  kinds.sort((a, b) => rank(a) - rank(b) || a.localeCompare(b));
+  $('ontChecks').innerHTML = kinds.map((k) =>
+    `<label><input type="checkbox" data-ont="${escHtml(k)}" checked><span class="swatch" style="background:${ontColor(k)}"></span>${escHtml(k)}<span class="n">${matches().filter((e) => byId[e.target].kind === k).length}</span></label>`).join('');
+}
+
+function drawStats() {
+  const m = graph.meta, to = m.terms_matched_to || {};
+  $('statsList').innerHTML = [
+    ['Air samples', m.samples], ['Could not be fetched', m.fetch_errors], ['Distinct terms', m.terms],
+    ...MAIN_ONTS.map((k) => [`Terms matched to ${k}`, to[k]]),
+    ['Terms with no match', m.terms - m.matched_terms], ['Contexts (tree nodes)', m.contexts],
+    ['Contexts matched to a GOLD class', m.contexts_matched_to_gold], ['Predicted matches', m.matches],
+  ].map(([k, v]) => `<div><dt>${k}</dt><dd>${(v ?? 0).toLocaleString()}</dd></div>`).join('');
+}
+
+// ─── Graph ───────────────────────────────────────────────────────────────────
+function reviewStatus(e) { const r = reviews[keyOf(e)]; return !r ? 'unreviewed' : r.disputed ? 'disputed' : r.verdict; }
+function reviewShown(e) {
+  const f = $('reviewFilter').value;
+  return !f || (f === 'flagged' ? e.review && reviewStatus(e) === 'unreviewed' : reviewStatus(e) === f);
+}
+
+function graphElements() {
+  const q = $('searchInput').value.trim().toLowerCase(), minS = +$('minSamples').value, minC = +$('confSlider').value;
+  const filtered = !!$('reviewFilter').value;
+  const allowed = selectedCtx ? new Set(treeById[selectedCtx].terms) : null;
+  const ids = new Set(), edges = [];
+  const termOk = (n) => !hiddenSlots.has(n.slot) && n.samples >= minS && (!q || n.label.toLowerCase().includes(q)) && (!allowed || allowed.has(n.id));
+  const matchOk = (e) => !hiddenOnts.has(byId[e.target].kind) && (e.confidence ?? 1) >= minC && reviewShown(e);
+  const out = {};
+  matches().forEach((e) => (out[e.source] ??= []).push(e));
+  graph.nodes.filter((n) => n.kind === 'air' && termOk(n)).forEach((n) => {
+    const ms = (out[n.id] || []).filter(matchOk);
+    if (!ms.length && (out[n.id]?.length || filtered || !$('showGaps').checked)) return;
+    ids.add(n.id);
+    ms.forEach((e) => { ids.add(e.target); edges.push(e); });
+  });
+  // The hierarchy between the terms shown: broad -> local -> medium.
+  graph.edges.forEach((e) => { if (e.kind === 'within' && ids.has(e.source) && ids.has(e.target)) edges.push(e); });
+  // Contexts matched to GOLD as a whole, inside the selected branch.
+  graph.nodes.filter((n) => n.kind === 'context' && ids.has(n.term) && inContext(n.id)).forEach((n) => {
+    const ms = (out[n.id] || []).filter(matchOk);
+    if (!ms.length) return;
+    ids.add(n.id);
+    edges.push({ source: n.id, target: n.term, kind: 'context_of' });
+    ms.forEach((e) => { ids.add(e.target); edges.push(e); });
+  });
+  // Each GOLD and EMPO class shown, with its parents.
+  const isA = graph.edges.filter((e) => e.kind === 'is_a');
+  for (let grew = true; grew;) {
+    grew = false;
+    isA.forEach((e) => { if (ids.has(e.source) && !ids.has(e.target) && !hiddenOnts.has(byId[e.target].kind)) { ids.add(e.target); grew = true; } });
+  }
+  isA.forEach((e) => { if (ids.has(e.source) && ids.has(e.target)) edges.push(e); });
+  const muted = cssVar('--text-muted');
+  return {
+    nodes: [...ids].map((id) => {
+      const n = byId[id];
+      const color = n.kind === 'air' ? SLOTS[n.slot].color : n.kind === 'context' ? CONTEXT_COLOR : ontColor(n.kind);
+      return { data: { ...n, color, gap: n.kind === 'air' && !out[id]?.length ? 1 : 0, ancestor: n.ancestor ? 1 : 0 } };
+    }),
+    edges: edges.map((e, i) => ({ data: { id: 'e' + i, ...e, rv: e.kind === 'match' ? reviewStatus(e) : 'none',
+      confidence: e.confidence ?? 1, color: e.kind === 'match' ? ontColor(byId[e.target].kind) : muted } })),
+  };
+}
+
+function drawGraph() {
+  const els = graphElements(), muted = cssVar('--text-muted'), text = cssVar('--text'), bg = cssVar('--bg');
+  if (cy) cy.destroy();
+  cy = cytoscape({
+    container: $('cy'), elements: els, minZoom: 0.05, maxZoom: 4,
+    style: [
+      { selector: 'node', style: { 'background-color': 'data(color)', 'width': 14, 'height': 14, 'label': 'data(label)', 'font-size': '7px',
+          'color': muted, 'text-valign': 'bottom', 'text-margin-y': 3, 'text-wrap': 'ellipsis', 'text-max-width': '90px',
+          'text-outline-color': bg, 'text-outline-width': 1.5 } },
+      { selector: 'node[kind="air"]', style: { 'shape': 'round-rectangle', 'width': 'mapData(samples, 1, 60, 12, 34)', 'height': 'mapData(samples, 1, 60, 12, 34)',
+          'font-size': '8px', 'color': text, 'border-width': 1.5, 'border-color': bg } },
+      { selector: 'node[kind="air"][gap = 1]', style: { 'background-opacity': 0.25, 'border-style': 'dashed', 'border-color': 'data(color)' } },
+      { selector: 'node[kind!="air"][kind!="context"]', style: { 'shape': 'ellipse', 'width': 18, 'height': 18 } },
+      { selector: 'node[ancestor = 1]', style: { 'background-opacity': 0.45, 'width': 14, 'height': 14 } },
+      { selector: 'node[kind="context"]', style: { 'shape': 'diamond', 'width': 20, 'height': 20, 'font-size': '7px', 'color': text } },
+      { selector: 'edge', style: { 'line-color': 'data(color)', 'target-arrow-color': 'data(color)', 'curve-style': 'bezier',
+          'width': 'mapData(confidence, 0.3, 1, 1, 3)', 'opacity': 0.8 } },
+      // broad -> local -> medium: the arrow points at the narrower context
+      { selector: 'edge[kind="within"]', style: { 'width': 'mapData(samples, 1, 50, 1, 4)', 'opacity': 0.55, 'target-arrow-shape': 'triangle', 'arrow-scale': 0.7 } },
+      { selector: 'edge[kind="is_a"]', style: { 'width': 1, 'opacity': 0.6, 'line-style': 'dashed', 'target-arrow-shape': 'triangle', 'arrow-scale': 0.6 } },
+      { selector: 'edge[kind="context_of"]', style: { 'width': 1, 'opacity': 0.5, 'line-style': 'dotted' } },
+      { selector: 'edge[match="skos:closeMatch"]', style: { 'line-style': 'dashed' } },
+      { selector: 'edge[match="skos:relatedMatch"]', style: { 'line-style': 'dotted' } },
+      { selector: 'edge[match="skos:broadMatch"]', style: { 'target-arrow-shape': 'triangle' } },
+      { selector: 'edge[match="skos:narrowMatch"]', style: { 'source-arrow-shape': 'triangle', 'source-arrow-color': 'data(color)' } },
+      { selector: 'edge[rv="correct"]', style: { 'line-color': cssVar('--st-correct'), 'width': 3 } },
+      { selector: 'edge[rv="incorrect"]', style: { 'line-color': cssVar('--st-incorrect'), 'line-style': 'dashed' } },
+      { selector: 'edge[rv="unsure"]', style: { 'line-color': cssVar('--st-unsure') } },
+      { selector: 'edge[rv="disputed"]', style: { 'line-color': cssVar('--st-disputed'), 'width': 3 } },
+      { selector: 'node.highlighted', style: { 'border-width': 4, 'border-color': cssVar('--accent'), 'z-index': 999 } },
+      { selector: '.faded', style: { 'opacity': 0.12 } },
+    ],
+    layout: { name: 'cose', animate: false, nodeRepulsion: 7000, idealEdgeLength: 60, gravity: 0.6, numIter: 1000, randomize: true, padding: 30 },
+  });
+  cy.on('tap', 'node', (evt) => focusNode(evt.target.id()));
+  cy.on('tap', (evt) => { if (evt.target === cy) { cy.elements().removeClass('faded highlighted'); } });
+  const terms = els.nodes.filter((n) => n.data.kind === 'air').length;
+  $('graphInfo').textContent = `${terms} terms · ${els.edges.filter((e) => e.data.kind === 'match').length} matches${selectedCtx ? ' · ' + treeById[selectedCtx].path.join(' › ') : ''}. ` +
+    'Squares are the samples\' terms, arrows running broad → local → medium. Circles are ontology classes, dashed arrows to their parents; diamonds are whole contexts matched to GOLD.';
+}
+
+function focusNode(id) {
+  const n = cy && cy.getElementById(id);
+  if (n && n.length) {
+    cy.elements().removeClass('faded highlighted');
+    const keep = n.closedNeighborhood();
+    cy.elements().not(keep).addClass('faded');
+    n.addClass('highlighted');
+    cy.animate({ fit: { eles: keep, padding: 80 } }, { duration: 300 });
+  }
+  showNodeDetail(byId[id]);
+}
+
+['searchInput'].forEach((id) => $(id).addEventListener('input', () => { clearTimeout(window._t); window._t = setTimeout(drawGraph, 250); }));
+$('showGaps').addEventListener('change', drawGraph);
+$('reviewFilter').addEventListener('change', drawGraph);
+$('minSamples').addEventListener('input', (e) => { $('minSamplesValue').textContent = e.target.value; });
+$('minSamples').addEventListener('change', drawGraph);
+$('confSlider').addEventListener('input', (e) => { $('confValue').textContent = (+e.target.value).toFixed(2); });
+$('confSlider').addEventListener('change', drawGraph);
+$('slotChecks').addEventListener('change', (e) => { const k = e.target.dataset.slot; e.target.checked ? hiddenSlots.delete(k) : hiddenSlots.add(k); drawGraph(); });
+$('ontChecks').addEventListener('change', (e) => { const k = e.target.dataset.ont; e.target.checked ? hiddenOnts.delete(k) : hiddenOnts.add(k); drawGraph(); });
+
+// ─── Reviews ─────────────────────────────────────────────────────────────────
+try { $('reviewerName').value = localStorage.getItem('airReviewer') || ''; } catch { /* storage blocked */ }
+$('reviewerName').addEventListener('change', (e) => { try { localStorage.setItem('airReviewer', e.target.value.trim()); } catch { /* storage blocked */ } });
+
+async function loadReviews() {
+  try { const r = await fetch('api/reviews'); if (!r.ok) return; reviews = (await r.json()).state || {}; } catch { return; }
+  reviewsChanged();
+}
+setInterval(() => { if (!document.hidden) loadReviews(); }, 30000);
+
+function reviewsChanged() {
+  drawProgress();
+  if (cy) cy.edges('[kind="match"]').forEach((ed) => ed.data('rv', reviewStatus(ed.data())));
+  if ($('reviewFilter').value) drawGraph();
+  if (lastDetail && !$('detailPanel').hidden && !document.activeElement?.closest('.review')) lastDetail();
+}
+
+function drawProgress() {
+  const all = matches(), count = Object.fromEntries(STATUSES.map(([k]) => [k, 0]));
+  all.forEach((e) => count[reviewStatus(e)]++);
+  const flagged = all.filter((e) => e.review && reviewStatus(e) === 'unreviewed').length;
+  $('valBar').innerHTML = STATUSES.filter(([k]) => k !== 'unreviewed' && count[k]).map(([k, l]) =>
+    `<span style="width:${100 * count[k] / (all.length || 1)}%;background:var(--st-${k})" title="${l}: ${count[k]}"></span>`).join('');
+  $('valLegend').innerHTML = STATUSES.map(([k, l]) => `<span class="swatch" style="background:${k === 'unreviewed' ? 'var(--chip-bg)' : `var(--st-${k})`}"></span><span>${l}</span><span class="num">${count[k]}</span>`).join('') +
+    `<span></span><span class="muted">${all.length - count.unreviewed} of ${all.length} reviewed${flagged ? ` · ${flagged} flagged still open` : ''}</span><span></span>`;
+}
+
+function reviewBlock(e) {
+  const key = keyOf(e), r = reviews[key], st = reviewStatus(e), current = r?.match_type || e.match;
+  const types = ['exactMatch', 'closeMatch', 'broadMatch', 'narrowMatch', 'relatedMatch'];
+  return `<div class="review" data-key="${escHtml(key)}">
+    <div class="rv-status"><span class="rv-pill st-${st}">${Object.fromEntries(STATUSES)[st]}</span>
+      <span class="muted">${r ? `${escHtml(r.reviewer)}, ${escHtml(r.time.slice(0, 10))}` : ''}${r?.match_type && r.match_type !== e.match ? ' · as ' + escHtml(shortMatch(r.match_type)) : ''}</span>
+      ${e.review && st === 'unreviewed' ? '<span class="muted">· flagged for review</span>' : ''}</div>
+    ${r?.comment ? `<div class="muted" style="margin-bottom:6px">“${escHtml(r.comment)}”</div>` : ''}
+    <div class="rv-actions">
+      <button type="button" data-verdict="correct">Correct</button>
+      <select class="rv-type" aria-label="Match type if correct">${types.map((t) => `<option value="skos:${t}"${'skos:' + t === current ? ' selected' : ''}>${t}${'skos:' + t === e.match ? ' (predicted)' : ''}</option>`).join('')}</select>
+      <button type="button" data-verdict="incorrect">Incorrect</button>
+      <button type="button" data-verdict="unsure">Unsure</button>
+    </div>
+    <textarea class="rv-comment" maxlength="2000" placeholder="Comment (optional): why, or what the right term is"></textarea>
+    <div class="rv-msg" hidden></div>
+  </div>`;
+}
+
+async function submitReview(btn) {
+  const box = btn.closest('.review'), msg = box.querySelector('.rv-msg'), reviewer = $('reviewerName').value.trim();
+  if (!reviewer) { msg.textContent = 'Enter your name under Validation on the left first.'; msg.hidden = false; $('reviewerName').focus(); return; }
+  const key = box.dataset.key, e = matches().find((x) => keyOf(x) === key);
+  const type = box.querySelector('.rv-type').value;
+  const body = { key, verdict: btn.dataset.verdict, reviewer, comment: box.querySelector('.rv-comment').value,
+                 match_type: btn.dataset.verdict === 'correct' && type !== e.match ? type : null };
+  box.querySelectorAll('button').forEach((b) => b.disabled = true);
+  try {
+    const res = await fetch('api/reviews', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+    const out = await res.json();
+    if (!res.ok) throw new Error(out.error || 'Could not save.');
+    reviews[key] = out.state; focusKey = key;
+    document.activeElement?.blur();
+    reviewsChanged();
+  } catch (err) { msg.textContent = err.message; msg.hidden = false; box.querySelectorAll('button').forEach((b) => b.disabled = false); }
+}
+
+// Flagged first, then the least confident, then the most used.
+$('nextReview').addEventListener('click', () => {
+  const open = matches().filter((e) => reviewStatus(e) === 'unreviewed')
+    .sort((a, b) => (b.review ? 1 : 0) - (a.review ? 1 : 0) || (a.confidence ?? 1) - (b.confidence ?? 1) || byId[b.source].samples - byId[a.source].samples);
+  if (!open.length) { $('valLegend').insertAdjacentHTML('beforeend', '<span></span><span class="muted">Everything has been reviewed.</span><span></span>'); return; }
+  focusKey = keyOf(open[0]);
+  if (!cy.getElementById(open[0].source).length) { $('searchInput').value = ''; $('reviewFilter').value = ''; selectContext(null); }
+  focusNode(open[0].source);
+  document.querySelector(`.mapping-card[data-key="${CSS.escape(focusKey)}"]`)?.scrollIntoView({ block: 'center' });
+});
+
+// ─── Detail panel ────────────────────────────────────────────────────────────
+const field = (label, html) => html ? `<div class="detail-field"><label>${label}</label>${html}</div>` : '';
+
+const samplesField = (n) => field('Samples', `<div class="chips">${n.accessions.map((a) => `<a class="chip" href="https://www.ebi.ac.uk/biosamples/samples/${encodeURIComponent(a)}" target="_blank" rel="noopener">${escHtml(a)}</a>`).join('')}${n.samples > n.accessions.length ? `<span class="muted">+${n.samples - n.accessions.length} more</span>` : ''}</div>`);
+const ctxLink = (c) => `<a href="#" data-select="${escHtml(c.id)}">${escHtml(c.path.join(' › '))}</a> <span class="muted">${c.samples}</span>`;
+
+// A tree branch: its path, its GOLD class if the whole context has one, and the terms its samples use.
+function showContextDetail(c) {
+  lastDetail = () => showContextDetail(c);
+  const gold = matches().filter((e) => e.source === c.id);
+  const kids = treeKids[c.id] || [];
+  const terms = c.terms.map((id) => byId[id]).filter((t) => t && !['env_broad_scale', 'env_local_scale', 'env_medium'].includes(t.slot));
+  $('detailContent').innerHTML = `<h2>${escHtml(c.path.join(' › '))}</h2>
+    <div class="detail-meta"><span class="badge" style="background:${CONTEXT_COLOR}">Context</span> · ${c.samples} sample(s) ·
+      level: ${escHtml(SLOTS[c.slot].label.toLowerCase())}${c.parent ? ` · in <a href="#" data-select="${escHtml(c.parent)}">${escHtml(treeById[c.parent].label)}</a>` : ''}</div>
+    ${field(`GOLD class for the whole context (${gold.length})`, gold.length ? `<div class="mappings-list">${gold.map((e) => card(e, e.target)).join('')}</div>`
+      : `<p class="muted">${c.slot === 'env_medium' ? 'No GOLD class has the same broad / local / medium ENVO terms.' : 'Matched at the medium level, below.'}</p>`)}
+    ${field('This level\'s term', `<p><a href="#" data-g="${escHtml(c.term)}">${escHtml(byId[c.term].label)}</a></p>`)}
+    ${kids.length ? field(`Below (${kids.length})`, `<ul class="link-list">${kids.map((k) => `<li>${ctxLink(k)}</li>`).join('')}</ul>`) : ''}
+    ${terms.length ? field('Other terms these samples use', `<div class="chips">${terms.slice(0, 30).map((t) => `<a class="chip" href="#" data-g="${escHtml(t.id)}">${escHtml(t.label)}</a>`).join('')}</div>`) : ''}
+    ${samplesField(c)}`;
+  $('detailPanel').hidden = false;
+}
+
+function card(e, otherId) {
+  const t = byId[otherId], key = keyOf(e);
+  const color = t.kind === 'air' ? SLOTS[t.slot].color : t.kind === 'context' ? CONTEXT_COLOR : ontColor(t.kind);
+  return `<div class="mapping-card${key === focusKey ? ' focus' : ''}" data-key="${escHtml(key)}" style="--card-color:${color}">
+    <div class="mapping-label"><a href="#" data-g="${escHtml(otherId)}">${escHtml(t.label)}</a></div>
+    <div class="mapping-meta"><span class="type-badge type-${shortMatch(e.match)}">${escHtml(shortMatch(e.match))}</span>
+      <span class="conf-badge">${(+(e.confidence ?? 1)).toFixed(2)}</span>
+      <span>${escHtml(t.kind === 'air' ? SLOTS[t.slot].label : t.kind === 'context' ? 'Context' : t.kind)}</span>
+      <span>· ${escHtml(ORIGINS[e.origin] || e.origin || '')}${e.via ? ' ' + escHtml(e.via) : ''}</span></div>
+    ${t.url ? `<a class="mapping-uri" href="${escHtml(safeUrl(t.url))}" target="_blank" rel="noopener">${escHtml(t.curie || t.url)}</a>` : ''}
+    ${reviewBlock(e)}
+  </div>`;
+}
+
+function showNodeDetail(n) {
+  if (!n) return;
+  lastDetail = () => showNodeDetail(n);
+  let html;
+  if (n.kind === 'context') {
+    showContextDetail(treeById[n.id]);
+    return;
+  } else if (n.kind === 'air') {
+    const ms = matches().filter((e) => e.source === n.id).sort((a, b) => (b.confidence ?? 0) - (a.confidence ?? 0));
+    const under = graph.tree.filter((c) => c.term === n.id).sort((a, b) => b.samples - a.samples);
+    html = `<h2>${escHtml(n.label)}</h2>
+      <div class="detail-meta"><span class="badge" style="background:${SLOTS[n.slot].color}">${escHtml(SLOTS[n.slot].label)}</span> · ${n.measured ? 'measured in' : 'used by'} ${n.samples} sample(s)</div>
+      ${field(`Matches (${ms.length})`, ms.length ? `<div class="mappings-list">${ms.map((e) => card(e, e.target)).join('')}</div>`
+        : '<div class="gap">No ontology term found for this value. It may be a gap in the ontologies, or text that needs cleaning before it can be matched.</div>')}
+      ${under.length ? field(`In the hierarchy (${under.length} context${under.length > 1 ? 's' : ''})`, `<ul class="link-list">${under.slice(0, 15).map((c) => `<li>${ctxLink(c)}</li>`).join('')}</ul>`) : ''}
+      ${field('Written in the field(s)', `<div class="chips">${Object.entries(n.fields).map(([f, c]) => `<span class="chip">${escHtml(f)} · ${c}</span>`).join('')}</div>`)}
+      ${samplesField(n)}`;
+  } else {
+    const up = graph.edges.filter((e) => e.kind === 'is_a' && e.source === n.id).map((e) => byId[e.target]);
+    const down = graph.edges.filter((e) => e.kind === 'is_a' && e.target === n.id).map((e) => byId[e.source]);
+    const rel = (list) => list.map((p) => `<a href="#" data-g="${escHtml(p.id)}">${escHtml(p.label)}</a>`).join(', ');
+    const ms = matches().filter((e) => e.target === n.id).sort((a, b) => byId[b.source].samples - byId[a.source].samples);
+    html = `<h2>${escHtml(n.label)}</h2>
+      <div class="detail-meta"><span class="badge" style="background:${ontColor(n.kind)}">${escHtml(n.kind)}</span> ${escHtml(n.curie || '')}
+        ${n.url ? `<br><a href="${escHtml(safeUrl(n.url))}" target="_blank" rel="noopener">${escHtml(n.url)}</a>` : ''}</div>
+      ${up.length ? field('Parent', `<p>${rel(up)}</p>`) : ''}
+      ${down.length ? field('Children matched here', `<p>${rel(down)}</p>`) : ''}
+      ${ms.length ? field(`Matched from (${ms.length})`, `<div class="mappings-list">${ms.map((e) => card(e, e.source)).join('')}</div>`)
+        : field('Matched from', '<p class="muted">Nothing directly: shown as the parent of a matched class.</p>')}`;
+  }
+  $('detailContent').innerHTML = html;
+  $('detailPanel').hidden = false;
+}
+
+$('detailClose').addEventListener('click', () => { $('detailPanel').hidden = true; });
+document.addEventListener('keydown', (e) => { if (e.key === 'Escape') $('detailPanel').hidden = true; });
+$('detailContent').addEventListener('click', (e) => {
+  const v = e.target.closest('button[data-verdict]');
+  if (v) { submitReview(v); return; }
+  const s = e.target.closest('a[data-select]');
+  if (s) { e.preventDefault(); selectedCtx = null; selectContext(s.dataset.select); return; }
+  const a = e.target.closest('a[data-g]');
+  if (!a) return;
+  e.preventDefault();
+  if (!cy.getElementById(a.dataset.g).length) { $('searchInput').value = ''; $('reviewFilter').value = ''; selectContext(null); }
+  focusNode(a.dataset.g);
+});
+</script>
+</body>
+</html>

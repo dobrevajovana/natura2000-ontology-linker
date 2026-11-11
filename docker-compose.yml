@@ -35,6 +35,7 @@ services:
       - DATA_DIR=/data
       - MFD_DATA_DIR=/mfd_data
       - MFD_REVIEWS_FILE=/reviews/reviews.jsonl
+      - AIR_REVIEWS_FILE=/reviews/air-reviews.jsonl
     profiles:
       - viz
 
