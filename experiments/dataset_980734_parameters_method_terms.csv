@@ -1,0 +1,60 @@
+id_parameter,name,abbreviation,unit,method,terms
+16065,Sample ID,Sample ID,,,
+20622,Laboratory,Lab,,,
+46490,Length,l,mm,,Length
+51998,Experiment,Exp,,,
+52224,Width,w,mm,,Length ; width
+53778,Mass,Mass,g,,Mass
+79702,Origin,Origin,,,Origma
+82404,Experimental treatment,Exp treat,,,
+105163,Treatment: temperature,T:temp,°C,,treatment ; Temperature
+128763,Electron transport system activity of oyxgen,ETS,µmol/g/min,,electron transport system activity ; Specific Activity
+135754,"Protein carbonyl, per protein mass",Prot carbo/prot,nmol/mg,,Molar Concentration
+155677,Experiment duration,Exp duration,days,,Time
+181311,Specimen identification,Spec ID,,,
+184856,Proteins per fresh mass,Prot,mg/g,,fresh mass ; protein
+185511,Treatment: salinity,T:sal,,,treatment
+185520,Type of study,Study type,,,type
+185573,Tank number,Tank No,,,
+510679,"Species, unique identification",Species UID,,,species
+512295,"Lipid peroxidation, per fresh mass",LPO/fm,nmol/g,,lipid peroxidation ; Molar Concentration ; fresh mass
+516120,"Date/time end, experiment",Date/time end exp,,,dATP
+516121,"Sampling date/time, experiment",Date/time sampling exp,,,Time ; sampling rate
+520938,Tissue type,Tissue type,,,tissue
+522890,"Phenylalanine, per fresh mass",Phe/fm,ng/mg,,change ; wet mass ; phenylalanine
+522891,"Tryptophan, per fresh mass",Trp/fm,ng/mg,,change ; wet mass ; tryptophan
+522893,"Isoleucine, per fresh mass",Ile/fm,ng/mg,,change ; wet mass ; isoleucine
+522894,"Tyrosine, per fresh mass",Tyr/fm,ng/mg,,change ; wet mass ; tyrosine
+522895,"Valine, per fresh mass",Val/fm,ng/mg,,change ; wet mass ; valine
+522898,"Hydroxyproline, per fresh mass",Hyp/fm,ng/mg,,change ; wet mass ; hydroxyproline
+522899,"Threonine, per fresh mass",Thr/fm,ng/mg,,change ; wet mass ; threonine
+522900,"Glutamine, per fresh mass",Gln/fm,ng/mg,,change ; wet mass ; glutamine
+522901,"Glycine, per fresh mass",Gly/fm,ng/mg,,change ; wet mass ; glycine
+522902,"Serine, per fresh mass",Ser/fm,ng/mg,,change ; wet mass ; serine
+522904,"Adenosine monophosphate, per fresh mass",AMP/fm,ng/mg,,adenosine monophosphate ; change ; wet mass
+522905,"Glutamate, per fresh mass",Glutamate/fm,ng/mg,,change ; wet mass ; glutarate
+522907,"Aspartate, per fresh mass",Aspartate/fm,ng/mg,,change ; wet mass ; aspartate
+522908,"Histidine, per fresh mass",His/fm,ng/mg,,change ; wet mass ; histidine
+522910,"Lysine, per fresh mass",Lys/fm,ng/mg,,change ; wet mass ; lysine
+522911,"Cystine, per fresh mass",Cystine/fm,ng/mg,,change ; wet mass ; cystine
+522916,"Succinate, per fresh mass",Succinate/fm,ng/mg,,change ; wet mass ; succinate
+522918,"Malate, per fresh mass",Malate/fm,ng/mg,,change ; wet mass ; malate
+522922,"Citrate, per fresh mass",Citrate/fm,ng/mg,,change ; wet mass ; citral
+540921,Treatment: air exposure,T:air exp,h/day,,treatment
+540922,"Carbohydrates, per fresh mass",CHO fm,mg/g,,fresh mass ; carbohydrate
+540923,"Antioxidant capacity, in Trolox Equivalents, per fresh mass",TEAC/fm,µmol/g,,Molar Concentration ; fresh mass
+540987,"Asparagine, per fresh mass",Asparagine/fm,ng/mg,,fresh mass ; asparagine
+540988,"Alanine, per fresh mass",Ala/fm,ng/mg,,fresh mass ; alanine
+540989,"Methionine sulfoxide, per fresh mass",Met sulfoxide/fm,ng/mg,,fresh mass
+540990,"Proline, per fresh mass",Pro/fm,ng/mg,,fresh mass ; proline
+540991,"Arginine, per fresh mass",Arg/fm,ng/mg,,fresh mass ; arginine
+540992,"Methionine, per fresh mass",Met/fm,ng/mg,,fresh mass ; methionine
+540993,"Leucine, per fresh mass",Leu/fm,ng/mg,,fresh mass ; leucine
+540994,"Taurine, per fresh mass",Tau/fm,ng/mg,,fresh mass ; taurine
+540995,"Lactate, per fresh mass",Lactate/fm,ng/mg,,fresh mass ; lactate
+540996,"Aconitate, per fresh mass",Aconitate/fm,ng/mg,,fresh mass ; aconitane
+540997,"gamma-Aminobutyric acid, per fresh mass",g-ABA/fm,ng/mg,,fresh mass ; gamma-aminobutyric acid
+540998,"Carnitine, per fresh mass",Carnitine/fm,ng/mg,,fresh mass ; carnitine
+540999,"Citrulline, per fresh mass",Cir/fm,ng/mg,,fresh mass ; citrulline
+541000,"Ornithine, per fresh mass",Orn/fm,ng/mg,,fresh mass ; ornithine
+541001,"Glutathione, per fresh mass",GSH/fm,ng/mg,,fresh mass ; glutathione
