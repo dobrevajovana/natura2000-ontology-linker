@@ -13,7 +13,7 @@
 # start. Without a pipeline run the graph holds the MFD crosswalk only.
 #
 # Rebuild the MFD data from the pinned release:
-#   docker compose -f docker-compose.mfd.yml run --rm mfd python -m mfd.build
+#   docker compose -f docker-compose.mfd.yml run --rm mfd python -m soil.mfd
 
 services:
   mfd:

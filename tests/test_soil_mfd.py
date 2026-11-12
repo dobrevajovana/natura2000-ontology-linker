@@ -1,6 +1,6 @@
 """Offline tests for the MFD viewer's build step and server: a small in-memory ontology, no network.
 
-Run:  python -m pytest -q tests/test_mfd.py
+Run:  python -m pytest -q tests/test_soil_mfd.py
 """
 
 import io
@@ -9,7 +9,7 @@ import json
 import pandas as pd
 import pytest
 
-from mfd import build
+from soil import mfd as build
 
 ONTO = pd.DataFrame([
     # sampletype, areatype, hab1 code, hab1, hab2 code, hab2, hab3 code, hab3, N2K, EUNIS, EMPO
@@ -88,14 +88,12 @@ def test_graph_without_linker_keeps_the_mfd_crosswalk():
 
 
 def test_build_reads_only_the_ontology_and_app_serves_it(tmp_path, monkeypatch):
-    src = tmp_path / "latest_mfd-habitat-ontology.xlsx"
-    ONTO.to_excel(src, index=False)
     old = tmp_path / "mfd" / "raw"
     old.mkdir(parents=True)
     (tmp_path / "mfd" / "samples.json").write_text("{}")  # from the sample-based version
     (old / "latest_mfd_db.xlsx").write_text("old")
 
-    meta = build.build(tmp_path, src)
+    meta = build.build(tmp_path, ONTO, search=None)
     assert meta["classes"] == 8 and meta["natura2000_codes"] == 3
     assert not (tmp_path / "mfd" / "samples.json").exists()
     assert not (old / "latest_mfd_db.xlsx").exists()
@@ -106,9 +104,9 @@ def test_build_reads_only_the_ontology_and_app_serves_it(tmp_path, monkeypatch):
     (linker / "mappings.json").write_text(json.dumps(MAPPINGS[:1]))
     (linker / "mappings_added.json").write_text(json.dumps({"ontologies": {}, "mappings": MAPPINGS[1:2]}))
     g = build.write_graph(tmp_path, linker)
-    assert g["meta"] == {"linker_terms": 2, "linker_mappings": 2}
+    assert g["meta"] == {"linker_terms": 2, "linker_mappings": 2, "envo_by_name": 0}
 
-    from mfd import app as mfd_app
+    from soil import app as mfd_app
     monkeypatch.setattr(mfd_app, "DATA_DIR", tmp_path)
     client = mfd_app.app.test_client()
     assert client.get("/").status_code == 200
@@ -121,13 +119,41 @@ def test_write_graph_tolerates_missing_linker_output(tmp_path):
     (tmp_path / "mfd").mkdir()
     (tmp_path / "mfd" / "ontology.json").write_text(json.dumps({"nodes": build.build_ontology(ONTO)}))
     g = build.write_graph(tmp_path, tmp_path / "nowhere")
-    assert g["meta"] == {"linker_terms": 0, "linker_mappings": 0}
+    assert g["meta"] == {"linker_terms": 0, "linker_mappings": 0, "envo_by_name": 0}
     assert g["edges"] and all(e["kind"] == "mfd_crosswalk" for e in g["edges"])
+
+
+def test_classes_without_natura_code_match_envo_by_name(tmp_path):
+    calls = []
+
+    def search(label):
+        calls.append(label)
+        hits = {"Wastewater": [
+            {"uri": "http://purl.obolibrary.org/obo/ENVO_00002001", "curie": "ENVO:00002001", "label": "waste water",
+             "match_type": "closeMatch", "confidence": 0.8},
+            {"uri": "http://x/low", "curie": "ENVO:9", "label": "low", "match_type": "relatedMatch", "confidence": 0.5}]}
+        return hits.get(label, [])
+
+    meta = build.build(tmp_path, ONTO, search=search)
+    assert "Temperate heath and scrub" not in calls  # has a Natura 2000 code
+    assert "Natural" not in calls and "Urban" not in calls  # too generic
+    assert meta["envo_matched"] == 1
+    envo = json.loads((tmp_path / "mfd" / "envo.json").read_text())
+    assert [h["curie"] for h in envo["Wastewater"]] == ["ENVO:00002001"]
+
+    build.build(tmp_path, ONTO, search=lambda label: pytest.fail("reused, not searched again"))
+
+    g = build.write_graph(tmp_path, tmp_path / "nowhere")
+    e = next(e for e in g["edges"] if e.get("direct"))
+    assert e["source"] == "mfd:Water > Urban > Wastewater" and e["kind"] == "linker"
+    assert e["match"] == "skos:closeMatch" and e["review"] is True  # below 0.85
+    assert g["meta"]["envo_by_name"] == 1
+    assert rv.predicted_matches(g)[e["source"] + "|" + e["target"]]["ontology"] == "ols4_envo"
 
 
 # ─── Reviews ──────────────────────────────────────────────────────────────────
 
-from mfd import reviews as rv  # noqa: E402
+from soil import reviews as rv  # noqa: E402
 
 WIKI = "http://www.wikidata.org/entity/Q1"
 ENVO = "http://purl.obolibrary.org/obo/ENVO_1"
@@ -218,7 +244,7 @@ def test_review_api(tmp_path, monkeypatch):
     (linker / "mappings.json").write_text(json.dumps(MAPPINGS))
     build.write_graph(tmp_path, linker)
 
-    from mfd import app as mfd_app
+    from soil import app as mfd_app
     monkeypatch.setattr(mfd_app, "DATA_DIR", tmp_path)
     monkeypatch.setattr(mfd_app, "REVIEWS_FILE", tmp_path / "mfd" / "reviews.jsonl")
     client = mfd_app.app.test_client()
@@ -249,7 +275,7 @@ def test_main_viewer_serves_the_mfd_viewer_under_mfd(tmp_path, monkeypatch):
     (tmp_path / "mappings.json").write_text(json.dumps(MAPPINGS))
     build.write_graph(tmp_path, tmp_path)
 
-    from mfd import app as mfd_app
+    from soil import app as mfd_app
     monkeypatch.setattr(mfd_app, "DATA_DIR", tmp_path)
     monkeypatch.setattr(mfd_app, "REVIEWS_FILE", tmp_path / "mfd" / "reviews.jsonl")
     monkeypatch.setenv("DATA_DIR", str(tmp_path))

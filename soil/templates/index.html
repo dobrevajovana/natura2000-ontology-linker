@@ -392,7 +392,7 @@ const hiddenKinds = new Set();
 
 // ─── Load ────────────────────────────────────────────────────────────────────
 Promise.all(['ontology', 'graph'].map((n) => fetch(`data/${n}.json`).then((r) => r.ok ? r.json() : null))).then(([o, g]) => {
-  if (!o) { $('loadStatus').textContent = 'No ontology data. Run python -m mfd.build'; return; }
+  if (!o) { $('loadStatus').textContent = 'No ontology data. Run python -m soil.mfd'; return; }
   nodes = o.nodes;
   nodes.forEach((n, i) => { n.i = i; byId[n.id] = n; (kids[n.parent ?? ''] ??= []).push(n); });
   if (g) graph = g;
@@ -415,7 +415,8 @@ function drawStats(meta) {
     ['MFD classes', meta.classes],
     ...XWALK.map((x) => [`Linked to ${x.label}`, nodes.filter((n) => n[x.key]).length]),
     ['Natura 2000 codes joined to the linker', n2k.filter((n) => n.linked).length],
-    ['Linker matches', graph.edges.filter((e) => e.kind === 'linker').length],
+    ['Linker matches', graph.edges.filter((e) => e.kind === 'linker' && !e.direct).length],
+    ['ENVO by name (no Natura 2000 code)', graph.edges.filter((e) => e.direct).length],
   ];
   $('statsList').innerHTML = rows.map(([k, v]) => `<div><dt>${k}</dt><dd>${(v ?? 0).toLocaleString()}</dd></div>`).join('');
 }
@@ -427,7 +428,7 @@ function drawKindChecks() {
   };
   const linker = [...new Set(graph.nodes.map((n) => n.kind))].filter((k) => !['mfd', ...XW_KINDS].includes(k));
   $('kindChecks').innerHTML = '<div class="check-head">MFD ontology crosswalk</div>' + XW_KINDS.map(check).join('') +
-    '<div class="check-head">Natura 2000 linker (through Natura 2000)</div>' +
+    '<div class="check-head">Linked ontologies (through Natura 2000, or ENVO by name)</div>' +
     (linker.length ? linker.map(check).join('') : '<div class="muted">No linker output found.</div>');
 }
 
@@ -546,7 +547,9 @@ function graphElements() {
     if (e.kind === 'mfd_crosswalk' && keep.has(e.source) && shown(e.target)) { ids.add(e.source); ids.add(e.target); edges.push(e); }
   });
   graph.edges.forEach((e) => {
-    if (e.kind === 'linker' && ids.has(e.source) && (e.confidence ?? 1) >= minConf && shown(e.target) && reviewShown(e)) { ids.add(e.target); edges.push(e); }
+    // direct: an MFD class without a Natura 2000 code, matched to ENVO by name
+    const from = ids.has(e.source) || (e.direct && keep.has(e.source));
+    if (e.kind === 'linker' && from && (e.confidence ?? 1) >= minConf && shown(e.target) && reviewShown(e)) { ids.add(e.source); ids.add(e.target); edges.push(e); }
   });
   const muted = cssVar('--text-muted');
   return {
@@ -622,7 +625,7 @@ function focusGraphNode(id, openDetail) {
   if (!g) return;
   if (g.kind === 'mfd') { showRange(rangeForClass(byId[g.ref])); if (openDetail) showClassDetail(byId[g.ref]); return; }
   // Natura 2000 node: its code; a linked term: the Natura 2000 habitat it was matched from.
-  const n2k = g.kind === 'natura2000' ? g : gById[graph.edges.find((e) => e.target === id && e.kind === 'linker')?.source];
+  const n2k = g.kind === 'natura2000' ? g : gById[graph.edges.find((e) => e.target === id && e.kind === 'linker' && !e.direct)?.source];
   if (n2k) showRange({ code: n2k.code, label: n2k.label });
   if (openDetail) showGraphNodeDetail(g);
 }
@@ -833,7 +836,7 @@ function openMatch(e) {
   if (pane === 'overview' || pane === 'map') setPane('split');
   if ($('reviewFilter').value && !reviewShown(e)) $('reviewFilter').value = '';
   // Select the MFD class that points at this habitat, so its part of the graph is drawn.
-  const ref = gById[graph.edges.find((x) => x.kind === 'mfd_crosswalk' && x.target === e.source)?.source]?.ref;
+  const ref = e.direct ? gById[e.source]?.ref : gById[graph.edges.find((x) => x.kind === 'mfd_crosswalk' && x.target === e.source)?.source]?.ref;
   if (ref) { revealInTree(ref); select(ref); } else { select(null); }
   requestAnimationFrame(() => {
     focusGraphNode(e.source, true);
@@ -849,7 +852,7 @@ function drawReviewedList() {
   const rows = Object.entries(reviews).filter(([k]) => byKey[k]).sort((a, b) => b[1].time.localeCompare(a[1].time));
   $('reviewedHead').textContent = `Reviewed matches (${rows.length})`;
   if (!rows.length) { el.innerHTML = '<div class="note">None yet. Reviewed matches are listed here, newest first.</div>'; return; }
-  el.innerHTML = `<table><thead><tr><th>Natura 2000 habitat</th><th>Matched term</th><th>Decision</th><th>Reviewer</th><th>When (UTC)</th><th>Comment</th></tr></thead><tbody>${rows.map(([k, r]) => {
+  el.innerHTML = `<table><thead><tr><th>Matched from</th><th>Matched term</th><th>Decision</th><th>Reviewer</th><th>When (UTC)</th><th>Comment</th></tr></thead><tbody>${rows.map(([k, r]) => {
     const e = byKey[k], t = gById[e.target], st = reviewStatus(e);
     return `<tr data-open="${escHtml(k)}" style="cursor:pointer" title="Open this match">
       <td>${escHtml(gById[e.source]?.label || e.source)}</td>
@@ -893,7 +896,8 @@ function showClassDetail(n) {
   lastDetail = () => showClassDetail(n);
   const path = [];
   for (let p = byId[n.parent]; p; p = byId[p.parent]) path.unshift(p.label);
-  const out = graph.edges.filter((e) => e.source === 'mfd:' + n.id);
+  const all = graph.edges.filter((e) => e.source === 'mfd:' + n.id);
+  const out = all.filter((e) => e.kind === 'mfd_crosswalk'), direct = all.filter((e) => e.direct);
   const n2kEdge = out.find((e) => gById[e.target]?.kind === 'natura2000');
   const linker = n2kEdge ? graph.edges.filter((e) => e.source === n2kEdge.target && e.kind === 'linker').sort((a, b) => (b.confidence ?? 0) - (a.confidence ?? 0)) : [];
   const n2k = n2kEdge && gById[n2kEdge.target];
@@ -905,6 +909,9 @@ function showClassDetail(n) {
     ${n2k ? field(`Natura 2000 ${escHtml(n2k.code)}: linked terms (${linker.length})`, linker.length
       ? `<div class="mappings-list">${linker.map((e) => mappingCard(e, e.target)).join('')}</div>`
       : `<p class="muted">${n2k.code.endsWith('00') ? 'A Natura 2000 group heading, not a habitat type, so the linker has no term for it.' : 'The linker has no term for this code.'}</p>`) : ''}
+    ${!n.natura2000 ? field(`ENVO by name (no Natura 2000 code)`, direct.length
+      ? `<div class="mappings-list">${direct.map((e) => mappingCard(e, e.target)).join('')}</div>`
+      : '<p class="muted">No ENVO match for this name.</p>') : ''}
     ${kids[n.id]?.length ? field(`Subclasses (${kids[n.id].length})`, `<ul class="link-list">${kids[n.id].map((k) => `<li><a href="#" data-select="${escHtml(k.id)}">${escHtml(k.label)}</a>${k.natura2000 ? ` <span class="code-chip">N2K ${escHtml(k.natura2000)}</span>` : ''}</li>`).join('')}</ul>`) : ''}`);
 }
 

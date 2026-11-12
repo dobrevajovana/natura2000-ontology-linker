@@ -8,8 +8,8 @@ RUN pip install --no-cache-dir -r requirements.viz.txt
 COPY viz/ ./viz/
 # the ontology manager reuses geoapp's calibrated OLS4 matcher
 COPY geoapp/ ./geoapp/
-# the MFD habitat ontology viewer is served at /mfd/
-COPY mfd/ ./mfd/
+# soil: the MFD viewer (served at /mfd/) and the NMDC soil build
+COPY soil/ ./soil/
 
 RUN mkdir -p /data
 

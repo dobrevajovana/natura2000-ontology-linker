@@ -297,14 +297,54 @@ Click any node to see full term information: label, category, EU code, scientifi
 
 ---
 
-## MFD Habitat Viewer
+## Soil (`soil/`)
+
+Two entrypoints build soil knowledge graphs:
+
+| Entrypoint | Starts from | Links |
+|---|---|---|
+| `python -m soil.mfd` | the MFD habitat ontology | through Natura 2000 when a class has a code, otherwise straight to ENVO by name |
+| `python -m soil.nmdc` | NMDC biosamples with `ecosystem_type: Soil` | ENVO from the record, GOLD from the record's ecosystem path |
+
+Then `python -m soil.kg` joins them into **one soil KG** (`data/soil/kg.json`), viewed at
+http://localhost:8080/soil/:
+
+- ENVO terms get one ID (`ENVO:…`) on both sides, so a term MFD and NMDC both use is a single node.
+- GOLD classes are linked from the ENVO term they name as `env_local` (from `gold.obo`), so MFD reaches GOLD too. At most 3 per term, shallowest first.
+- Every node lists which datasets reach it. The viewer opens on where they meet; the left panel switches between the MFD hierarchy and the NMDC context tree, and a branch shows everything it leads to plus the other dataset's classes or contexts that meet it.
+- The viewer rebuilds `kg.json` on start, after the MFD build, so new MFD or NMDC runs show up after a restart.
+
+```bash
+docker compose --profile viz run --rm viz python -m soil.nmdc      # once, or when NMDC changes
+docker compose --profile viz up -d --build                          # builds MFD and the soil KG on start
+```
+
+### NMDC soil samples
+
+`python -m soil.nmdc` downloads every NMDC biosample matching `ecosystem_type:Soil`
+from `https://api.microbiomedata.org/biosamples` (about 9,900; `--limit 500` for a quick
+test) and reads:
+
+- **ENVO**: `env_broad_scale`, `env_local_scale`, `env_medium`. NMDC gives them as ENVO terms, so they are used as they are.
+- **GOLD**: the ecosystem path `ecosystem > ecosystem_category > ecosystem_type > ecosystem_subtype > specific_ecosystem`, looked up by name in the [GOLD ontology](https://raw.githubusercontent.com/cmungall/gold-ontology/main/gold.obo) (read from the URL). Trailing "Unclassified" steps are dropped; if GOLD has no class for the full path, the deepest part it has is used as a broadMatch.
+- `gold_biosample_identifiers`, `associated_studies`, `geo_loc_name`, `lat_lon` are kept in `samples.json`.
+
+The graph is a context tree (broad › local › medium, with sample counts) linked to the
+GOLD classes and their parents. Each GOLD link records whether GOLD's own ENVO triad for
+that class agrees with the samples'. Output: `data/soil/nmdc/{samples,graph}.json`.
+
+```bash
+docker compose --profile viz run --rm viz python -m soil.nmdc
+```
+
+### MFD Habitat Viewer
 
 A viewer for the Microflora Danica habitat ontology (MFDO). It reads one file,
 [`data/ontology/latest_mfd-habitat-ontology.xlsx`](https://github.com/cmc-aau/mfd_metadata/blob/main/data/ontology/latest_mfd-habitat-ontology.xlsx)
-from cmc-aau/mfd_metadata (GPL-3.0), pinned to one commit in `mfd/build.py`, and uses the same look and layout as the Natura 2000 viewer.
+from cmc-aau/mfd_metadata (GPL-3.0), straight from its URL (pinned to one commit in `soil/mfd.py`; set `MFD_ONTOLOGY_URL` or `--url` for another), and uses the same look and layout as the Natura 2000 viewer.
 
 - **Hierarchy** (left panel): the five MFDO levels (sample type > area type > MFDO1 > MFDO2 > MFDO3) with each class's Natura 2000 code. The search box filters it by name or code and keeps the matches in their place in the hierarchy.
-- **Knowledge graph**: each MFD class joined through its Natura 2000 code to this repo's linker output, so MFD class → Natura 2000 habitat → Wikidata / EUNIS / ENVO (and any ontology added in the main viewer), plus MFD's own EUNIS and EMPO classes. It follows the hierarchy selection; "Linked to" and the confidence slider filter it as in the main viewer. MFD codes ending in 00 (1200, 9100, ...) are Natura 2000 group headings, so they have no linker term.
+- **Knowledge graph**: each MFD class joined through its Natura 2000 code to this repo's linker output, so MFD class → Natura 2000 habitat → Wikidata / EUNIS / ENVO (and any ontology added in the main viewer), plus MFD's own EUNIS and EMPO classes. It follows the hierarchy selection; "Linked to" and the confidence slider filter it as in the main viewer. MFD codes ending in 00 (1200, 9100, ...) are Natura 2000 group headings, so they have no linker term. Classes without a Natura 2000 code are matched to ENVO by name with the OLS4 matcher (kept in `data/mfd/envo.json`, so each name is searched once); these matches are reviewed like the linker's.
 - **Map**: Natura 2000 protected sites by default; for the selected class, the Danish range and conservation status of its Natura 2000 habitat (EEA Article 17 report 2019–2024), per biogeographic region. A class without a code uses its nearest parent's; a group code shows every habitat type in the group.
 - **Split / Map full / Graph full**, with a draggable splitter, and a detail panel with the class's crosswalk and linked terms.
 
@@ -314,11 +354,11 @@ docker compose --profile viz up -d --build    # -> http://localhost:8080/mfd/ (i
 docker compose -f docker-compose.mfd.yml up -d --build    # -> http://localhost:8095
 # or locally
 pip install -r requirements.mfd.txt
-python -m mfd.build --linker-dir data   # downloads the ontology, writes data/mfd/{ontology,graph}.json
-python -m mfd.app
+python -m soil.mfd --linker-dir data   # reads the ontology from its URL, writes data/mfd/{ontology,envo,graph}.json
+python -m soil.app
 ```
 
-### Expert review of predicted matches
+#### Expert review of predicted matches
 
 The viewer is also where domain experts validate the **predicted** matches: the Natura 2000 linker's links from the habitats the MFD ontology uses to Wikidata, EUNIS, ENVO and other ontologies (191 with the current pipeline output). MFD's own crosswalk to EMPO, Natura 2000 and EUNIS is curated by the MFD team and is shown as reference, not reviewed.
 
@@ -338,7 +378,7 @@ A match's state is each reviewer's latest decision; if they differ it is marked 
 
 There is no login: anyone who can open the page can review under any name, so run it only where the reviewers are trusted.
 
-The ontology and the graph are rebuilt on every start (the download is cached); the compose file mounts the pipeline's volume read-only for the linker output, so restart the viewer after a new pipeline run. Without pipeline output the graph shows the MFD crosswalk only.
+The ontology and the graph are rebuilt on every start (the ontology is read from its URL each time); the compose file mounts the pipeline's volume read-only for the linker output, so restart the viewer after a new pipeline run. Without pipeline output the graph shows the MFD crosswalk only.
 
 ## API Endpoints
 

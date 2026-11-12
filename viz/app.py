@@ -591,12 +591,14 @@ def api_remove_ontology(ontology: str):
 
 
 # ---------------------------------------------------------------------------
-# The MFD habitat ontology viewer (mfd/) lives under /mfd/ on the same server.
+# The MFD habitat ontology viewer (soil/) lives under /mfd/ on the same server.
 # Its page uses relative URLs, so it works there and standalone alike.
 # ---------------------------------------------------------------------------
-from mfd import app as mfd_app  # noqa: E402
+from soil import app as mfd_app  # noqa: E402
+from soil import kg_app  # noqa: E402
 
-app.wsgi_app = DispatcherMiddleware(app.wsgi_app, {"/mfd": mfd_app.app.wsgi_app})
+# /soil/: MFD and NMDC joined in one graph (soil/kg.py).
+app.wsgi_app = DispatcherMiddleware(app.wsgi_app, {"/mfd": mfd_app.app.wsgi_app, "/soil": kg_app.app.wsgi_app})
 
 
 @app.route("/mfd")
@@ -604,8 +606,14 @@ def mfd_slash():
     return redirect("/mfd/", code=301)
 
 
+@app.route("/soil")
+def soil_slash():
+    return redirect("/soil/", code=301)
+
+
 if __name__ == "__main__":
     port = int(os.environ.get("VIZ_PORT", 8080))
     mfd_app.prepare(strict=False)
+    kg_app.prepare(strict=False)  # after MFD, which it reads
     logger.info("Starting visualization server on port %d, data dir: %s (MFD viewer at /mfd/)", port, DATA_DIR)
     app.run(host="0.0.0.0", port=port, debug=False, threaded=True)

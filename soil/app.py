@@ -3,7 +3,7 @@
 Serves the page, the ontology and graph JSON, and the review API that stores
 experts' decisions on the predicted matches (see mfd/reviews.py).
 
-Run:  python -m mfd.app      (builds the JSON on start; the ontology download is cached)
+Run:  python -m soil.app      (builds the JSON on start; ENVO matches are kept in envo.json)
 """
 
 from __future__ import annotations
@@ -15,10 +15,10 @@ from pathlib import Path
 
 from flask import Flask, Response, abort, jsonify, render_template, request, send_from_directory
 
-from mfd import build
-from mfd.reviews import ReviewError, ReviewStore, export_csv, export_sssom, predicted_matches
+from soil import mfd as build
+from soil.reviews import ReviewError, ReviewStore, export_csv, export_sssom, predicted_matches
 
-logger = logging.getLogger("mfd.app")
+logger = logging.getLogger("soil.app")
 
 # MFD_DATA_DIR lets the Natura 2000 viewer host this one with its own data folder;
 # the files (and reviews) are always under <data dir>/mfd/.
